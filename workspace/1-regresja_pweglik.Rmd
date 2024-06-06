@@ -1,0 +1,139 @@
+---
+title: "Regresja liniowa - Przemek Węglik"
+date: "Semestr letni 2023/24"
+output: html_document
+---
+
+## Ładowanie zbioru danych
+
+```{r}
+df = read.csv("spotify-2023.csv")
+names(df)[names(df) == "danceability_."] <- "danceability"
+names(df)[names(df) == "valence_."] <- "valence"
+names(df)[names(df) == "energy_."] <- "energy"
+names(df)[names(df) == "acousticness_."] <- "acousticness"
+names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
+names(df)[names(df) == "liveness_."] <- "liveness"
+names(df)[names(df) == "speechiness_."] <- "speechiness"
+
+df = transform(df, streams = as.numeric(streams))
+
+head(df)
+```
+
+```{r}
+names(df)
+```
+
+```{r}
+dim(df)
+```
+
+## Prosta regresja liniowa
+
+```{r}
+fit_ac <- lm(streams ~ acousticness, data = df)
+summary(fit_ac)
+```
+
+```{r}
+fit_lv <- lm(df$streams ~ df$liveness)
+summary(fit_lv)
+```
+
+```{r}
+fit_sp <- lm(df$streams ~ df$speechiness)
+summary(fit_sp)
+```
+
+## Wykresy prostej regresji liniowej
+
+Prosta regresji na tle danych
+
+```{r}
+{
+  plot = plot(df$speechiness, df$streams)
+  abline(fit_sp, col="red")
+}
+```
+
+```{r}
+{
+  fit <- lm(df$liveness ~ df$energy)
+  plot = plot(df$energy, df$liveness)
+  abline(fit, col="red")
+}
+```
+
+Przykładowe wnioski: - liczba odsłuchań jest negatywnie skorelowana z liczbą słów w piosence. - energetyczność piosenki jest pozytywnie skorelowana z elementami wystąpień na żywo
+
+Wykresy diagnostyczne
+
+```{r}
+plot(fit_sp)
+```
+
+## Regresja wielokrotna
+
+```{r}
+fit_some <- lm(streams ~ key + energy + liveness, data = df)
+summary(fit_some)
+```
+
+Regresja bez niektórych zmiennych
+
+```{r}
+fit_filtered <- lm(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df)
+summary(fit_filtered)
+```
+
+```{r}
+mean(summary(fit_some)$residuals^2)
+```
+
+```{r}
+mean(summary(fit_filtered)$residuals^2)
+```
+
+Wniosek: Dołożenie większej liczby cech zmniejszyło średnio błąd kwadratowy.
+
+## Interakcje między zmiennymi
+
+```{r}
+summary(lm(streams ~ energy * liveness, data = df))
+```
+
+## Nieliniowe transformacje predyktorów
+
+
+```{r}
+fit_l2 <- lm(streams ~ bpm + I(bpm^2), data = df)
+summary(fit_l2)
+```
+
+
+```{r}
+anova(fit_ac, fit_l2)
+```
+
+Regresja wielomianowa wyższego stopnia może wykorzystywać funkcję `poly()`
+
+```{r poly}
+fit_l5 <- lm(streams ~ poly(bpm, 5), data = df)
+summary(fit_l5)
+```
+
+Logarytmiczna transformacja predyktora
+
+```{r log}
+summary(lm(streams ~ log(bpm), data = df))
+```
+
+## Predyktory jakościowe
+
+Dla czynników generowane są automatycznie zmienne zastępcze, np.
+
+```{r}
+fit_key <- lm(streams ~ key, data = df)
+summary(fit_key)
+```

@@ -1,0 +1,8 @@
+{
+    "jobs_tab_visibility": "closed",
+    "initial_working_directory": "~",
+    "editor_keybindings": "vim",
+    "posix_terminal_shell": "bash",
+    "help_font_size_points": 9,
+    "font_size_points": 8
+}

@@ -1,0 +1,90 @@
+# Introduction to R
+
+### 0. Loading dataset
+
+```{r}
+library(ISLR)
+
+data('Auto')
+
+head(Auto)
+```
+
+### 1. Mean fuel consumption
+
+```{r}
+names(Auto)
+```
+
+```{r}
+mean(Auto$mpg)
+```
+
+### 2. Mean fuel consumption of 4-cylinder cars
+
+```{r}
+mean(subset(Auto, cylinders == 4)$mpg)
+```
+
+### 3. Median of weight
+
+```{r}
+median(Auto$weight)
+```
+
+### 4. Fuel consumption of cars from year 72
+
+```{r}
+mean(subset(Auto, year == 72)$mpg)
+```
+
+### 5. Variation of acceleration
+
+```{r}
+var(Auto$acceleration)
+```
+
+### 6. Variation of acceleration in Japanese cars
+
+```{r}
+var(subset(Auto, origin ==3)$acceleration)
+```
+
+### 7. Number of cars with above average horsepower
+
+```{r}
+average_horsepower = mean(Auto$horsepower)
+sum(Auto$horsepower > average_horsepower)
+```
+
+### 8. Max horsepower of light cars
+
+```{r}
+average_weight = mean(Auto$weight)
+max(subset(Auto, weight < average_weight)$horsepower)
+```
+
+### 9. Number of cars with low fuel consumption
+
+```{r}
+average_mpg = mean(Auto$mpg)
+sum(Auto$mpg > average_mpg)
+```
+
+### 10. Minimal cylinders of cars with low fuel consumption
+
+```{r}
+min(subset(Auto, mpg > average_mpg)$cylinders)
+```
+
+### 11. Number of cars with maximal displacement
+
+```{r}
+sum(Auto$displacement == max(Auto$displacement))
+```
+
+### 12. Max weight of car with displacment smaller then median
+
+```{r}
+max(subset(Auto, displacement < median(displacement))$weight)
+```
