@@ -1,11 +1,27 @@
 ---
 title: "Selekcja cech dla modeli liniowych"
-date: "Semestr letni 2021/22"
+date: "Semestr letni 2023/24"
 output: html_document
 ---
 
+## Ładowanie zbioru danych
+
+```{r}
+df = read.csv("spotify-2023.csv")
+names(df)[names(df) == "danceability_."] <- "danceability"
+names(df)[names(df) == "valence_."] <- "valence"
+names(df)[names(df) == "energy_."] <- "energy"
+names(df)[names(df) == "acousticness_."] <- "acousticness"
+names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
+names(df)[names(df) == "liveness_."] <- "liveness"
+names(df)[names(df) == "speechiness_."] <- "speechiness"
+
+df = transform(df, streams = as.numeric(streams))
+
+head(df)
+```
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
 library(MASS)
 library(ISLR)
 library(leaps)
@@ -13,75 +29,101 @@ library(leaps)
 
 ## Selekcja cech dla modeli liniowych
 
-Używamy zbioru danych `Hitters` z pakietu `ISLR` (`?Hitters`). Należy usunąć
-wiersze zawierające wartości `NA`. 
-```{r na.omit}
-Hitters <- na.omit(Hitters)
+```{r}
+df <- na.omit(df)
 ```
 Metody selekcji cech są zaimplementowane
 w funkcji `regsubsets()` z pakietu `leaps`.
 
 ### Wybór najepszego podzbioru
 
-```{r bestSubsets1}
-Hitters_bs <- regsubsets(Salary ~ ., data = Hitters)
-summary(Hitters_bs)
+```{r}
+df_bs <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df, really.big=T)
+summary(df_bs)
 ```
 
 Jak można zobaczyć, funkcja `regsubsets()` domyślnie uwzględnia maksymalnie 8
 predyktorów. Jeśli chcemy to zmienić, musimy użyć parametru `nvmax`.
-```{r bestSubsets}
-Hitters_bs <- regsubsets(Salary ~ ., data = Hitters, nvmax = 19)
-Hitters_bs_sum <- summary(Hitters_bs)
-Hitters_bs_sum
+```{r}
+df_bs <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df, nvmax = 19, really.big=T)
+df_bs_sum <- summary(df_bs)
+df_bs_sum
 ```
 
 Obiekt zwracany przez funkcję `summary.regsubsets()` zawiera informacje umożliwiające
 zidentyfikowanie globalnie najlepszego pozdbioru cech, np. miarę $C_p$.
-```{r cp}
-Hitters_bs_sum$cp
+```{r}
+df_bs_sum$cp
 ```
 
 Najlepszy podzbiór według kryterium BIC
-```{r bestBIC}
-bic_min <- which.min(Hitters_bs_sum$bic)
+```{r}
+bic_min <- which.min(df_bs_sum$bic)
 bic_min
-Hitters_bs_sum$bic[bic_min]
+df_bs_sum$bic[bic_min]
 ```
 
 Stosowny obrazek
-```{r bestBICPlot}
-plot(Hitters_bs_sum$bic, xlab = "Liczba zmiennych", ylab = "BIC", col = "green",
+```{r}
+{
+plot(df_bs_sum$bic, xlab = "Liczba zmiennych", ylab = "BIC", col = "green",
      type = "b", pch = 20)
-points(bic_min, Hitters_bs_sum$bic[bic_min], col = "red", pch = 9)
+points(bic_min, df_bs_sum$bic[bic_min], col = "red", pch = 9)
+}
 ```
 
 Dostępny jest też specjalny rodzaj wykresu (`?plot.regsubsets`).
-```{r regsubsetsPlot}
-plot(Hitters_bs, scale = "bic")
+```{r}
+plot(df_bs, scale = "bic")
 ```
 
 Estymaty współczynników dla optymalnego podzbioru
-```{r bestSubsetCoef}
-coef(Hitters_bs, id = 6)
+```{r}
+coef(df_bs, id = 6)
 ```
 
 [**Zrób podobną analizę dla innych kryteriów optymalności: $C_p$ i poprawionego 
-$R^2$. Zwróć uwagę na to, że poprawione $R^2$ powinno być _zmaksymalizowane_.**]
+$R^2$. Zwróć uwagę na to, że poprawione $R^2$ powinno być _zmaksymalizowane_.**
+]
 
+Najlepszy podzbiór według kryterium $C_p$
+```{r}
+cp_min <- which.min(df_bs_sum$cp)
+cp_min
+df_bs_sum$cp[cp_min]
+```
+
+Stosowny obrazek
+```{r}
+{
+plot(df_bs_sum$cp, xlab = "Liczba zmiennych", ylab = "BIC", col = "green",
+     type = "b", pch = 20)
+points(cp_min, df_bs_sum$cp[cp_min], col = "red", pch = 9)
+}
+```
+
+Dostępny jest też specjalny rodzaj wykresu (`?plot.regsubsets`).
+```{r}
+plot(df_bs, scale = "Cp")
+```
+
+Estymaty współczynników dla optymalnego podzbioru
+```{r}
+coef(df_bs, id = 6)
+```
 ### Selekcja krokowa do przodu i wstecz
 
 Funkcja `regsubsets()` z odpowiednio ustawionym parametrem `method` może
 przeprowadzić selekcję krokową.
-```{r stepwise}
-Hitters_fwd <- regsubsets(Salary ~ ., data = Hitters, nvmax = 19, 
+```{r}
+df_fwd <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df, nvmax = 19, 
                           method = "forward")
-Hitters_fwd_sum <- summary(Hitters_fwd)
-Hitters_fwd_sum
-Hitters_back <- regsubsets(Salary ~ ., data = Hitters, nvmax = 19, 
+df_fwd_sum <- summary(df_fwd)
+df_fwd_sum
+df_back <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df, nvmax = 19, 
                            method = "backward")
-Hitters_back_sum <- summary(Hitters_back)
-Hitters_back_sum
+df_back_sum <- summary(df_back)
+df_back_sum
 ```
 
 [**Które podzbiory predyktorów są optymalne w selekcji krokowej w przód i wstecz
@@ -93,17 +135,17 @@ najlepsze?**]
 Estymaty błędów testowych będą dokładne tylko jeśli
 wszystkie aspekty dopasowania modelu --- w tym selekcję zmiennych ---
 przeprowadzimy z użyciem wyłącznie **zbioru uczącego**.
-```{r valSet}
-n <- nrow(Hitters)
+```{r}
+n <- nrow(df)
 train <- sample(c(TRUE, FALSE), n, replace = TRUE)
 test <- !train
-Hitters_bs_v <- regsubsets(Salary ~ ., data = Hitters[train,], nvmax = 19)
+df_bs_v <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df[train,], nvmax = 19)
 ```
 
 Niestety dla modeli zwracanych przez `regsubsets` nie ma odpowiedniej 
 metody `predict()`. Może ona mieć następującą postać (funkcja `model.matrix()`
 tworzy macierz $X$ dla podanych punktów).
-```{r predict.regsubsets}
+```{r}
 predict.regsubsets <- function(object, newdata, id, ...) {
   model_formula <- as.formula(object$call[[2]])
   mat <- model.matrix(model_formula, newdata)
@@ -113,12 +155,12 @@ predict.regsubsets <- function(object, newdata, id, ...) {
 ```
 
 Liczymy estymaty błędów
-```{r valSetErrors}
+```{r}
 prediction_error <- function(i, model, subset) {
-  pred <- predict(model, Hitters[subset,], id = i)
-  mean((Hitters$Salary[subset] - pred)^2)
+  pred <- predict(model, df[subset,], id = i)
+  mean((df$streams[subset] - pred)^2)
 }
-val_errors <- sapply(1:19, prediction_error, model = Hitters_bs_v, subset = test)
+val_errors <- sapply(1:19, prediction_error, model = df_bs_v, subset = test)
 val_errors
 ```
 
@@ -136,7 +178,7 @@ k <- 10
 folds <- sample(1:k, n, replace = TRUE)
 val_err <- NULL
 for (j in 1:k) {
-  fit_bs <- regsubsets(Salary ~ ., data = Hitters[folds != j,], nvmax = 19)
+  fit_bs <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df[folds != j,], nvmax = 19)
   err <- sapply(1:19, prediction_error, model = fit_bs, subset = (folds == j))
   val_err <- rbind(val_err, err)
 }
