@@ -1,22 +1,33 @@
 ---
 title: "Walidacja krzyżowa i bootstrap"
-date: "Semestr letni 2021/22"
+date: "Semestr letni 2023/24"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
+## Ładowanie zbioru danych
+
+```{r}
+df = read.csv("spotify-2023.csv")
+names(df)[names(df) == "danceability_."] <- "danceability"
+names(df)[names(df) == "valence_."] <- "valence"
+names(df)[names(df) == "energy_."] <- "energy"
+names(df)[names(df) == "acousticness_."] <- "acousticness"
+names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
+names(df)[names(df) == "liveness_."] <- "liveness"
+names(df)[names(df) == "speechiness_."] <- "speechiness"
+
+df = transform(df, streams = as.numeric(streams))
+
+library(class)
 library(MASS)
-library(ISLR)
-library(boot)
+head(df)
 ```
 
 ## Walidacja krzyżowa
 
-Używamy zbioru danych `Auto`. Można go wczytać z pliku z pierwszego laboratorium,
-jest też dostępny w pakiecie `ISLR`. Należy usunąć z niego wiersze zawierające `NA`.
-```{r auto.na.omit}
-Auto <- na.omit(Auto)
+Usuwamy NA
+```{r}
+df <- na.omit(df)
 ```
 
 ### Metoda zbioru walidacyjnego
@@ -24,53 +35,55 @@ Auto <- na.omit(Auto)
 Tworzymy zbiór uczący z połowy dostępnych obserwacji --- reszta będzie stanowić
 zbiór walidacyjny. Dla zapewnienia powtarzalności obliczeń stosujemy funkcję
 `set.seed`.
-```{r validationSet1}
+```{r}
 set.seed(1)
-n <- nrow(Auto)
+n <- nrow(df)
 train <- sample(n, n / 2)
 ```
 
 Dopasowujemy model liniowy na zbiorze uczącym, następnie obliczamy MSE dla zbioru
 walidacyjnego.
-```{r validationSet2}
-Auto_lm <- lm(mpg ~ horsepower, data = Auto, subset = train)
-validation_set <- Auto[-train,]
-mse <- mean((validation_set$mpg - predict(Auto_lm, validation_set))^2)
+```{r}
+df_lm <- lm(streams ~ liveness, data = df, subset = train)
+validation_set <- df[-train,]
+mse <- mean((validation_set$streams - predict(df_lm, validation_set))^2)
 mse
 ```
 
 Powtarzamy to samo dla regresji wielomianowej wyższych stopni
-```{r validationSet3}
+```{r}
 for (i in 2:5) {
-  Auto_lm_poly <- lm(mpg ~ poly(horsepower, degree = i), data = Auto, 
+  df_lm_poly <- lm(streams ~ poly(liveness, degree = i), data = df, 
                      subset = train)
-  print(mean((validation_set$mpg - predict(Auto_lm_poly, validation_set))^2))
+  print(mean((validation_set$streams - predict(df_lm_poly, validation_set))^2))
 }
 ```
 
 [**Jaki z tych wyników można wyciągnąć wniosek?**]
+Ciężko wnioskować liczbę odsłuchań na podstawie tego czy piosenka jest wyknoywana na żywo. A jeśli juz musimy to lepiej użyć niskiego współczynnika wielomianu
 
 Powtarzamy obliczenia dla innego zbioru walidacyjnego.
-```{r validationSetOther}
+```{r}
 set.seed(2)
 train <- sample(n, n / 2)
-validation_set <- Auto[-train,]
+validation_set <- df[-train,]
 degree_max <- 5
 mse <- rep(0, times = degree_max)
 for (i in 1:degree_max) {
-  Auto_lm <- lm(mpg ~ poly(horsepower, degree = i), data = Auto, subset = train)
-  mse[i] <- mean((validation_set$mpg - predict(Auto_lm, validation_set))^2)
+  df_lm <- lm(streams ~ poly(liveness, degree = i), data = df, subset = train)
+  mse[i] <- mean((validation_set$streams - predict(df_lm, validation_set))^2)
 }
 mse
 ```
+Nieco inne wyniki - oczekiwane
 
 Wersja powyższego obliczenia dla miłośników programowania funkcyjnego i tych,
 którzy nie lubią pętli.
-```{r validationSetOtherNoLoop}
+```{r}
 compute_mse <- function(degree, train) {
-  Auto_lm <- lm(mpg ~ poly(horsepower, degree), data = Auto, subset = train)
-  validation_set <- Auto[-train,]
-  mean((validation_set$mpg - predict(Auto_lm, validation_set))^2)
+  df_lm <- lm(streams ~ poly(liveness, degree), data = df, subset = train)
+  validation_set <- df[-train,]
+  mean((validation_set$streams - predict(df_lm, validation_set))^2)
 }
 
 mse <- sapply(1:degree_max, compute_mse, train = train)
@@ -78,12 +91,12 @@ mse
 ```
 Funkcja `vapply` jest bezpieczniejsza i bywa szybsza od `sapply`, więc
 przedostatnią instrukcję można zmodyfikować następująco:
-```{r vapply}
+```{r}
 mse <- vapply(1:degree_max, compute_mse, FUN.VALUE = numeric(1), train = train)
 ```
 
 Otrzymane wyniki można zobrazować na wykresie
-```{r validationSetPlot}
+```{r}
 plot(mse, xlab = "Stopień wielomianu", ylab = "MSE", type = "b", pch = 20, 
      col = "blue")
 ```
@@ -100,22 +113,26 @@ domyślną). Funkcja `cv.glm()` zwraca listę (zobacz `?cv.glm`), której najbar
 interesującą składawą jest `delta` --- wektor o długości 2 zawierający estymatę
 błędu predykcji w wersji oryginalnej i skorygowaną dla uwzględnienia obciążenia
 wprowadzanego przez walidację krzyżową inną niż LOOCV.
-```{r loocv}
+```{r}
+library(boot)
+
 compute_loocv_mse <- function(degree) {
-  Auto_glm <- glm(mpg ~ poly(horsepower, degree), data = Auto)
-  cv.glm(Auto, Auto_glm)$delta[1]
+  df_glm <- glm(streams ~ poly(liveness, degree), data = df)
+  cv.glm(df, df_glm)$delta[1]
 }
 mse <- sapply(1:degree_max, compute_loocv_mse)
 mse
 ```
 
 Można też narysować obrazek
-```{r loocvPlot}
+```{r}
 plot(mse, xlab = "Stopień wielomianu", ylab = "LOOCV MSE", type = "b", pch = 20, 
      col = "blue")
 ```
 
 [**Co teraz z wnioskami na temat regresji wielomianowej w naszym przypadku?**]
+
+MSE jest jeszcze gorsze.
 
 [**Sprawdź, że dla LOOCV obie współrzędne `delta` zawierają praktycznie to samo.**]
 
@@ -125,8 +142,8 @@ Podobnie korzystamy z funkcji `cv.glm()`, tylko teraz jawnie ustawiamy parametr 
 oznaczający liczbę grup (*folds*). Np. dla $k = 10$ wygląda to jak poniżej.
 ```{r kcv}
 compute_kcv_mse <- function(degree, k) {
-  Auto_glm <- glm(mpg ~ poly(horsepower, degree), data = Auto)
-  cv.glm(Auto, Auto_glm, K = k)$delta[1]
+  df_glm <- glm(streams ~ poly(liveness, degree), data = df)
+  cv.glm(df, df_glm, K = k)$delta[1]
 }
 mse <- sapply(1:degree_max, compute_kcv_mse, k = 10)
 mse
@@ -140,7 +157,7 @@ mse10
 ```
 
 I stosowny obrazek
-```{r kcv2Plot}
+```{r}
 matplot(mse10, pch = 20, type = "l", xlim = c(1, degree_max), ylim = c(18, 25),
         xlab = "Stopień wielomianu", ylab = "Walidacyjny MSE")
 ```
@@ -154,30 +171,26 @@ regresji liniowej. Podstawową funkcją jest tutaj `boot()` z pakietu `boot`.
 Wymaga ona jako parametru funkcji obliczającej interesującą statystykę dla podanego 
 zbioru danych. Ta ostatnia funkcja powinna akceptować dwa parametry: zbiór danych
 oraz wektor indeksów (istnieją też inne możliwości: `?boot`).
-```{r bootFunction}
+```{r}
 lm_coefs <- function(data, index = 1:nrow(data)) {
-  coef(lm(mpg ~ horsepower, data = Auto, subset = index))
+  coef(lm(streams ~ liveness, data = df, subset = index))
 }
 ```
 
 Funkcja `lm_coefs()` oblicza estymaty współczynników regresji dla zbioru danych
 typu bootstrap utworzonego z `Auto`:
-```{r bootAuto}
-n <- nrow(Auto)
-lm_coefs(Auto, sample(n, n, replace = TRUE))
+```{r}
+n <- nrow(df)
+lm_coefs(df, sample(n, n, replace = TRUE))
 ```
 Oczywiście jednym z takich zbiorów jest sam oryginał
-```{r coefAuto}
-lm_coefs(Auto)
+```{r}
+lm_coefs(df)
 ```
 
 Obliczenie błędów standardowych metodą bootstrap z 1000 replikacji wygląda 
 następująco.
 ```{r boot}
-boot(Auto, lm_coefs, R = 1000)
+boot(df, lm_coefs, R = 1000)
 ```
 
-[**Porównaj otrzymane wyniki ze standardowymi błędami obliczonymi przez
-funkcję `lm()`. Jakie z tego porównania można wyciągnąć wnioski?**]
-
-[**Powtórz obliczenia dla regresji kwadratowej**]
