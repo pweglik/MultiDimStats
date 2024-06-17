@@ -4,10 +4,25 @@ date: "Semestr letni 2021/22"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, eval = FALSE)
-library(ISLR)
-library(MASS)
+## Ładowanie zbioru danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, liveness = as.numeric(liveness))
+dataframe = na.omit(dataframe)
+
+head(dataframe)
+```
+
+```{r}
 library(tree)
 library(randomForest)
 library(gbm)
@@ -20,28 +35,20 @@ implementacja dostępna jest w pakiecie `rpart`).
 
 ### Drzewa klasyfikacyjne
 
-Poniższy kod wykorzystuje zbiór danych `Carseats` z pakietu `ISLR`. Będziemy
-klasyfikować obserwacje do dwóch klas: *wysoka sprzedaż* i *niska sprzedaż*.
+Będziemy klasyfikować obserwacje do dwóch klas: *wykonywane na zywo* i *nie wykonywane na żywo*.
 Uzupełniamy zbiór danych
-```{r CarseatsDS}
-High <- factor(ifelse(Carseats$Sales <= 8, "No", "Yes"))
-CarseatsH <- data.frame(Carseats, High)
-```
-To samo inaczej
-```{r within}
-CarseatsH <- within(Carseats, High <- factor(ifelse(Sales <= 8, "No", "Yes")))
-```
-i jeszcze inaczej
-```{r transform}
-CarseatsH <- transform(Carseats, High = factor(ifelse(Sales <= 8, "No", "Yes")))
+```{r}
+live <- factor(ifelse(dataframe$liveness <= 50, "No", "Yes"))
+dataframeLive <- data.frame(dataframe, live)
 ```
 
-Budujemy drzewo klasyfikacyjne do predykcji `High` na podstawie pozostałych
-zmiennych (poza `Sales`).
 
-```{r classTree}
-sales_high_tree <- tree(High ~ . - Sales, data = CarseatsH)
-summary(sales_high_tree)
+Budujemy drzewo klasyfikacyjne do predykcji `live` na podstawie pozostałych
+zmiennych (poza `liveness` i kilku innych).
+
+```{r}
+liveness_high_tree <- tree(live ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - liveness, data = dataframeLive)
+summary(liveness_high_tree)
 ```
 
 Dla drzew klasyfikacyjnych
@@ -54,103 +61,115 @@ $$
 $$
 
 Przedstawienie graficzne dopasowanego modelu
-```{r plottree}
-plot(sales_high_tree)
-text(sales_high_tree, pretty = 0)
+```{r}
+{
+plot(liveness_high_tree)
+text(liveness_high_tree, pretty = 0)
+}
 ```
 
 Więcej informacji podaje funkcja `print.tree()`
-```{r print_tree}
-sales_high_tree
+```{r}
+liveness_high_tree
 ```
 
 [**Które predyktory są najbardziej istotne?**]
 
 Metodą zbioru walidacyjnego estymujemy błąd testowy dla drzewa klasyfikacyjnego
 w rozważanym problemie.
-```{r classtreeerror}
+```{r}
 set.seed(1)
-n <- nrow(CarseatsH)
+n <- nrow(dataframeLive)
 train <- sample(n, n / 2)
 test <- -train
-sales_high_tree <- tree(High ~ . - Sales, data = CarseatsH, subset = train)
-tree_class <- predict(sales_high_tree, newdata = CarseatsH[test,], type = "class")
-table(tree_class, CarseatsH$High[test])
-mean(tree_class != CarseatsH$High[test])
+liveness_high_tree <- tree(live ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - liveness, data = dataframeLive, subset = train)
+tree_class <- predict(liveness_high_tree, newdata = dataframeLive[test,], type = "class")
+table(tree_class, dataframeLive$live[test])
+mean(tree_class != dataframeLive$live[test])
 ```
 
-*Duże* drzewo $T_0$ dla zbioru uczącego `CarseatsH[train,]`
-```{r bigclasstree}
-plot(sales_high_tree)
-text(sales_high_tree, pretty = 0)
+*Duże* drzewo $T_0$ dla zbioru uczącego `dataframeLive[train,]`
+```{r}
+{
+plot(liveness_high_tree)
+text(liveness_high_tree, pretty = 0)
+}
 ```
 
 Do znalezienia optymalnego poddrzewa stosujemy przycinanie stosowane złożonością.
 Przy pomocy CV konstruujemy ciąg poddrzew wyznaczony przez malejącą złożoność.
 
-```{r classtreecv}
+```{r}
 set.seed(1)
-sales_high_cv <- cv.tree(sales_high_tree, FUN = prune.misclass)
-sales_high_cv
-plot(sales_high_cv$size, sales_high_cv$dev, type = "b")
+liveness_high_cv <- cv.tree(liveness_high_tree, FUN = prune.misclass)
+liveness_high_cv
+plot(liveness_high_cv$size, liveness_high_cv$dev, type = "b")
 ```
 
-Składowa `sales_high_cv$dev` zawiera liczbę błędów CV. Przycinamy drzewo $T_0$
+Składowa `liveness_high_cv$dev` zawiera liczbę błędów CV. Przycinamy drzewo $T_0$
 do poddrzewa z najmniejszym poziomem błędów CV.
 
-```{r class.tree.prune}
-size_opt <- sales_high_cv$size[which.min(sales_high_cv$dev)]
-sales_high_pruned <- prune.misclass(sales_high_tree, best = size_opt)
-plot(sales_high_pruned)
-text(sales_high_pruned, pretty = 0)
+```{r}
+size_opt <- liveness_high_cv$size[which.min(liveness_high_cv$dev)]
+# niestety size_opt = 1 i nie da się tego wyświetlić
+liveness_high_pruned <- prune.misclass(liveness_high_tree, best = 5)
+{
+plot(liveness_high_pruned)
+text(liveness_high_pruned, pretty = 0)
+}
 ```
 
 Testowy poziom błędów dla optymalnego poddrzewa.
-```{r class.pruned.error}
-pruned_class <- predict(sales_high_pruned, newdata = CarseatsH[test,], 
+```{r}
+pruned_class <- predict(liveness_high_pruned, newdata = dataframeLive[test,], 
                         type = "class")
-table(pruned_class, CarseatsH$High[test])
-mean(pruned_class != CarseatsH$High[test])
+table(pruned_class, dataframeLive$live[test])
+mean(pruned_class != dataframeLive$live[test])
 ```
 
 [**Narysuj wykres błędu testowego w zależności od rozmiaru poddrzewa.**]
 
 ### Drzewa regresyjne
 
-Używamy zbioru danych `Boston` z pakietu `MASS`. Konstruujemy drzewo decyzyjne
-dla problemu regresji `medv` względem pozostałych zmiennych.
-
-```{r regressiontree}
-medv_tree <- tree(medv ~ ., data = Boston)
-summary(medv_tree)
+```{r}
+liveness_tree <- tree(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe)
+summary(liveness_tree)
 ```
 
 *Deviance* oznacza tutaj RSS. Przedstawienie drzewa
-```{r medvtreeshow}
-medv_tree
-plot(medv_tree)
-text(medv_tree)
+```{r}
+{
+liveness_tree
+plot(liveness_tree)
+text(liveness_tree)
+}
 ```
 
 [**Które predyktory są najistotniejsze?**]
 
 Metodą zbioru walidacyjnego szacujemy błąd testowy.
 
-```{r medvtreeerror}
+```{r}
 set.seed(1)
-n <- nrow(Boston)
+n <- nrow(dataframe)
 train <- sample(n, n / 2)
 test <- -train
-medv_tree <- tree(medv ~ ., data = Boston, subset = train)
-medv_pred <- predict(medv_tree, newdata = Boston[test,])
-mean((medv_pred - Boston$medv[test])^2)
+liveness_tree <- tree(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train)
+liveness_pred <- predict(liveness_tree, newdata = dataframe[test,])
+mean((liveness_pred - dataframe$liveness[test])^2)
+```
+```{r}
+{
+plot(liveness_tree)
+text(liveness_tree)
+}
 ```
 
 Wyznaczamy optymalne poddrzewo metodą przycinania sterowanego złożonością.
 
-```{r medv.tree.cv}
-medv_cv <- cv.tree(medv_tree)
-plot(medv_cv$size, medv_cv$dev, type = "b")
+```{r}
+liveness_cv <- cv.tree(liveness_tree)
+plot(liveness_cv$size, liveness_cv$dev, type = "b")
 ```
 
 [**Które poddrzewo jest optymalne? Jaki jest jego (estymowany) błąd testowy?**]
@@ -158,10 +177,10 @@ plot(medv_cv$size, medv_cv$dev, type = "b")
 Przycinanie drzewa $T_0$ do żądanego poziomu realizuje w tym przypadku funkcja
 `prune.tree()`.
 
-```{r medv.prune}
-medv_pruned <- prune.tree(medv_tree, best = 4)
-plot(medv_pruned)
-text(medv_pruned)
+```{r}
+liveness_pruned <- prune.tree(liveness_tree, best = 4)
+plot(liveness_pruned)
+text(liveness_pruned)
 ```
 
 [**Oblicz estymatę błędu testowego dla poddrzewa z 4 liśćmi.**]
@@ -173,16 +192,16 @@ Oczywiście bagging jest szczególnym przypadkiem lasu losowego.
 
 ### Bagging
 
-Bagging dla regresji `medv` względem wszystkich pozostałych w zbiorze `Boston`.
+Bagging dla regresji `liveness` względem wszystkich pozostałych w zbiorze `dataframe`.
 
-```{r medvbag}
-medv_bag <- randomForest(medv ~ ., data = Boston, mtry = 13, importance = TRUE)
-medv_bag
+```{r}
+liveness_bag <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, mtry = 13, importance = TRUE)
+liveness_bag
 ```
 
 Wykres błędu OOB względem liczby drzew
-```{r medvbagoob}
-plot(medv_bag, type = "l")
+```{r}
+plot(liveness_bag, type = "l")
 ```
 W przypadku regresji błąd MSE OOB dostępny jest w składowej `mse` obiektu
 klasy `randomForest`.
@@ -190,32 +209,32 @@ W przypadku klasyfikacji wyniki analizy danych OOB dostępne są w składowych
 `err.rate` (proporcja błędów) i `confusion` (tabela pomyłek).
 
 Wyznaczenie ważności predyktorów
-```{r medvimportance}
-importance(medv_bag)
+```{r}
+importance(liveness_bag)
 ```
 I stosowny obrazek
-```{r medvimpplot}
-varImpPlot(medv_bag)
+```{r}
+varImpPlot(liveness_bag)
 ```
 
 Oszacowanie błędu testowego dla poprzednio wyznaczonego zbioru walidacyjnego.
-```{r medvbagvalid}
+```{r}
 set.seed(2)
-medv_bag <- randomForest(medv ~ ., data = Boston, subset = train, mtry = 13,
+liveness_bag <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train, mtry = 13,
                          importance = TRUE)
-medv_pred_bag <- predict(medv_bag, newdata = Boston[test,])
-mean((medv_pred_bag - Boston$medv[test])^2)
+liveness_pred_bag <- predict(liveness_bag, newdata = dataframe[test,])
+mean((liveness_pred_bag - dataframe$liveness[test])^2)
 ```
 
 [**Czy dla zmniejszonego zbioru uczącego zmieniła się ważność predyktorów?**]
 
 Powyższe dla mniejszej liczby hodowanych drzew
-```{r medvbagvalidsmall}
+```{r}
 set.seed(2)
-medv_bag_s <- randomForest(medv ~ ., data = Boston, subset = train, mtry = 13,
+liveness_bag_s <- randomForest(liveness ~ ., data = dataframe, subset = train, mtry = 13,
                          importance = TRUE, ntree = 25)
-medv_pred_bag_s <- predict(medv_bag_s, newdata = Boston[test,])
-mean((medv_pred_bag_s - Boston$medv[test])^2)
+liveness_pred_bag_s <- predict(liveness_bag_s, newdata = dataframe[test,])
+mean((liveness_pred_bag_s - dataframe$liveness[test])^2)
 ```
 
 ### Lasy losowe
@@ -224,12 +243,12 @@ Domyślna wartość parametru `mtry` to $\sqrt{p}$ dla regresji i $p/3$ dla
 klasyfikacji.
 
 Oszacowanie błędu testowego dla poprzednio wyznaczonego zbioru walidacyjnego.
-```{r medvrfvalid}
+```{r}
 set.seed(2)
-medv_rf <- randomForest(medv ~ ., data = Boston, subset = train,
+liveness_rf <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train,
                          importance = TRUE)
-medv_pred_rf <- predict(medv_rf, newdata = Boston[test,])
-mean((medv_pred_rf - Boston$medv[test])^2)
+liveness_pred_rf <- predict(liveness_rf, newdata = dataframe[test,])
+mean((liveness_pred_rf - dataframe$liveness[test])^2)
 ```
 
 [**Co w tym przypadku można powiedzieć o istotności predyktorów?**]
@@ -238,12 +257,12 @@ mean((medv_pred_rf - Boston$medv[test])^2)
 lasu losowego.**]
 
 Powyższe dla ręcznie ustawionego parametru $m$ (czyli `mtry`).
-```{r medv.rf.valid.mtry}
+```{r}
 set.seed(2)
-medv_rf <- randomForest(medv ~ ., data = Boston, subset = train, mtry = 6,
+liveness_rf <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train, mtry = 6,
                          importance = TRUE)
-medv_pred_rf <- predict(medv_rf, newdata = Boston[test,])
-mean((medv_pred_rf - Boston$medv[test])^2)
+liveness_pred_rf <- predict(liveness_rf, newdata = dataframe[test,])
+mean((liveness_pred_rf - dataframe$liveness[test])^2)
 ```
 
 ## Boosting
@@ -252,7 +271,7 @@ Używamy algorytmów boostingu dla drzew decyzyjnych zaimplementowanych w
 pakiecie `gbm`. Inną implementację --- wydajną i często pojawiającą się
 w zastosowaniach --- zawiera pakiet `xgboost`.
 
-Boosting dla regresji `medv` względem pozostałych zmiennych ze zbioru `Boston`.
+Boosting dla regresji `liveness` względem pozostałych zmiennych ze zbioru `dataframe`.
 Funkcją dopasowującą model jest `gbm()` z istotnymi parametrami:
 
 - `distribution`: `"gaussian"` dla regresji z RSS, `"bernoulli"` dla regresji typu
@@ -264,60 +283,60 @@ logistycznego;
 
 - `shrinkage`: parametr spowalniający uczenie ($\lambda$).
 
-```{r boost}
-medv_boost <- gbm(medv ~ ., data = Boston, distribution = "gaussian",
+```{r}
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe, distribution = "gaussian",
                   n.trees = 5000, interaction.depth = 4)
-medv_boost
+liveness_boost
 ```
 
 Funkcja `summary.gbm()` wyznacza ważność predyktorów i (domyślnie) wykonuje
 odpowiedni wykres.
-```{r boostimp}
-summary(medv_boost)
+```{r}
+summary(liveness_boost)
 ```
 
 [**Które predyktory teraz są najistotniejsze?**]
 
 Funkcja `plot.gbm()` wykonuje *wykresy częściowej zaleźności*.
-```{r medvboostpdp}
-plot(medv_boost, i.var = "rm")
-plot(medv_boost, i.var = "lstat")
-plot(medv_boost, i.var = c("rm", "lstat"))
+```{r}
+plot(liveness_boost, i.var = "acousticness")
+plot(liveness_boost, i.var = "energy")
+plot(liveness_boost, i.var = c("acousticness", "energy"))
 ```
 
 Oszacowanie błędu testowego dla poprzednio wyznaczonego zbioru walidacyjnego.
-```{r medvboostvalid}
+```{r}
 set.seed(2)
-medv_boost <- gbm(medv ~ ., data = Boston[train,], distribution = "gaussian",
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe[train,], distribution = "gaussian",
                   interaction.depth = 4, n.trees = 5000)
-medv_pred_boost <- predict(medv_boost, newdata = Boston[test,], n.trees = 5000)
-mean((medv_pred_boost - Boston$medv[test])^2)
+liveness_pred_boost <- predict(liveness_boost, newdata = dataframe[test,], n.trees = 5000)
+mean((liveness_pred_boost - dataframe$liveness[test])^2)
 ```
 
 To samo dla $\lambda = 0.01$.
-```{r medvboostvalid2}
+```{r}
 set.seed(2)
-medv_boost <- gbm(medv ~ ., data = Boston[train,], distribution = "gaussian",
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe[train,], distribution = "gaussian",
                   interaction.depth = 4, n.trees = 5000, shrinkage = 0.01)
-medv_pred_boost <- predict(medv_boost, newdata = Boston[test,], n.trees = 5000)
-mean((medv_pred_boost - Boston$medv[test])^2)
+liveness_pred_boost <- predict(liveness_boost, newdata = dataframe[test,], n.trees = 5000)
+mean((liveness_pred_boost - dataframe$liveness[test])^2)
 ```
 
 To samo dla $d = 1$.
-```{r medvboostvalid3}
+```{r}
 set.seed(2)
-medv_boost <- gbm(medv ~ ., data = Boston[train,], distribution = "gaussian",
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe[train,], distribution = "gaussian",
                   n.trees = 5000, shrinkage = 0.01)
-medv_pred_boost <- predict(medv_boost, newdata = Boston[test,], n.trees = 5000)
-mean((medv_pred_boost - Boston$medv[test])^2)
+liveness_pred_boost <- predict(liveness_boost, newdata = dataframe[test,], n.trees = 5000)
+mean((liveness_pred_boost - dataframe$liveness[test])^2)
 ```
 
 [**Użyj baggingu, lasów losowych i boostingu do analizy problemu klasyfikacji
-sprzedaży w zbiorze `CarseatsH`. Jak zastosowanie tych metod wpływa na
+sprzedaży w zbiorze `dataframeLive`. Jak zastosowanie tych metod wpływa na
 jakość klasyfikacji? Co można powiedzieć o ważności predyktorów?**]
 
 **Uwaga**. Obecna implementacja funkcji `gbm()` nie działa jeśli
 zmienna odpowiedzi jest czynnikiem o 2 poziomach. Należy taką zmienną
 przekształcić na zmienną numeryczną o wartościach w zbiorze $\{0, 1\}$
-lub na zmienną logiczną. Np. w powyższym ćwiczeniu zamiast zmiennej `High`
-można użyć `I(High == "Yes")`.
+lub na zmienną logiczną. Np. w powyższym ćwiczeniu zamiast zmiennej `live`
+można użyć `I(live == "Yes")`.
