@@ -1,12 +1,10 @@
 # Statystyka wielowymiarowa
 
-Przemysław Węglik
-17.06.2024
+Przemysław Węglik 17.06.2024
 
-## Dataset
+# Dataset
 
-Użyłem datasetu: [Most Streamed Spotify Songs 2023](https://www.kaggle.com/datasets/nelgiriyewithana/top-spotify-songs-2023).
-Dane zawierają różnorodne informacje dotyczące najczęściej odsłuchiwamnych utworów dostępnych na Spotify w roku 2023. Zbiór danych obejmuje zarówno cechy utworów, jak i informacje o artystach oraz interakcjach użytkowników z muzyką. Poniżej znajduje się przykładowy przegląd tego, co zawierają dane:
+Użyłem datasetu: [Most Streamed Spotify Songs 2023](https://www.kaggle.com/datasets/nelgiriyewithana/top-spotify-songs-2023). Dane zawierają różnorodne informacje dotyczące najczęściej odsłuchiwamnych utworów dostępnych na Spotify w roku 2023. Zbiór danych obejmuje zarówno cechy utworów, jak i informacje o artystach oraz interakcjach użytkowników z muzyką. Poniżej znajduje się przykładowy przegląd tego, co zawierają dane:
 
 #### Informacje o utworach
 
@@ -20,8 +18,11 @@ Dane o artystach obejmują ich unikalne identyfikatory, nazwy, oraz gatunki muzy
 
 Spotify dostarcza wiele danych opisujących cechy audio utworów. Na przykład, "danceability" (czyli jak dobrze utwór nadaje się do tańczenia), "energy" (energia utworu), klucz muzyczny, głośność, tryb (major lub minor), oraz "speechiness" (obecność słów mówionych w utworze). Inne przykłady to "acousticness" (akustyczność), "instrumentalness" (obecność instrumentalnych partii) oraz "liveness" (to czy utwór jest nagrany na żywo).
 
+# Regersja liniowa
+
 ## Ładowanie zbioru danych
-Zmieniamy nazwy kolumn i delikatnie czyścimy 
+
+Zmieniamy nazwy kolumn i delikatnie czyścimy
 
 ```{r}
 dataframe = read.csv("spotify-2023.csv")
@@ -33,7 +34,7 @@ names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
 names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
 names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
 
-dataframe = transform(dataframe, liveness = as.numeric(liveness))
+dataframe = transform(dataframe, streams = as.numeric(streams))
 dataframe = na.omit(dataframe)
 
 head(dataframe)
@@ -75,4 +76,1334 @@ Prosta regresji na tle danych
 }
 ```
 
-Przykładowe wnioski: - liczba odsłuchań jest negatywnie skorelowana z liczbą słów w piosence. - energetyczność piosenki jest pozytywnie skorelowana z elementami wystąpień na żywo
+#### Wnioski
+
+Liczba odsłuchań jest negatywnie skorelowana z liczbą słów w piosence. - energetyczność piosenki jest pozytywnie skorelowana z elementami wystąpień na żywo
+
+## Regresja wielokrotna
+
+```{r}
+fit_some <- lm(streams ~ key + energy + liveness, data = dataframe)
+summary(fit_some)
+```
+
+Regresja bez niektórych zmiennych
+
+```{r}
+fit_filtered <- lm(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe)
+summary(fit_filtered)
+```
+
+```{r}
+mean(summary(fit_some)$residuals^2)
+```
+
+```{r}
+mean(summary(fit_filtered)$residuals^2)
+```
+
+#### Wniosek
+
+Dołożenie większej liczby cech zmniejszyło średnio błąd kwadratowy kilkukrotnie.
+
+## Interakcje między zmiennymi
+
+```{r}
+summary(lm(streams ~ energy * liveness, data = dataframe))
+```
+
+## Nieliniowe transformacje predyktorów
+
+```{r}
+fit_l2 <- lm(streams ~ bpm + I(bpm^2), data = dataframe)
+summary(fit_l2)
+```
+
+```{r}
+anova(fit_ac, fit_l2)
+```
+
+Regresja wielomianowa wyższego stopnia może wykorzystywać funkcję `poly()`
+
+```{r poly}
+fit_l5 <- lm(streams ~ poly(bpm, 5), data = dataframe)
+summary(fit_l5)
+```
+
+Logarytmiczna transformacja predyktora
+
+```{r log}
+summary(lm(streams ~ log(bpm), data = dataframe))
+```
+
+#### Wnioski
+
+Stosowanie bardziej skomplikowanych przekształceń zwięszka RSE, a zatem jakość predykcji pogarsza się.
+
+# Klasyfikacja
+
+## Ładowanie zbioru danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, streams = as.numeric(streams))
+
+head(dataframe)
+library(class)
+library(MASS)
+```
+
+## Regresja logistyczna - multinomial
+
+```{r}
+library(nnet) 
+
+model <- multinom(key ~ mode + danceability + valence + energy + acousticness, data = dataframe) 
+
+summary(model)
+```
+
+#### Wnioski
+
+Tryb (mode) mocno koreluje z niektórymi z kluczy, inne pojedyncze cechy również nieco korelują, przydałaby się tutaj normalizacja danych, aby lepiej porównać.
+
+```{r}
+training_pred <- predict(model, dataframe, type="class")
+
+accuracy <- mean(training_pred == dataframe$key)
+accuracy
+```
+
+#### Wnioski
+
+Accuracy nie powala, ale klucz może byc czymś bardzo trudnym do przewidzenia - mamy 11 klas, model czegoś się jednak nauczył.
+
+```{r}
+library(caTools)
+trainIndex <- sample.split(dataframe$key, SplitRatio = 0.8)
+train <- subset(dataframe, trainIndex)
+test <- subset(dataframe, !trainIndex)
+```
+
+Regresję wykonujemy na podstawie zbioru uczącego
+
+```{r}
+model2 <- multinom(key ~ mode + danceability + valence + energy + acousticness, data = train) 
+summary(model2)
+```
+
+a otrzymany model wykorzystujemy do predykcji dla danych ze zbioru testowego
+
+```{r logisticPredictionTrain}
+testing_pred <- predict(model, test, type="class")
+
+accuracy <- mean(testing_pred == test$key)
+accuracy
+```
+
+#### Wnioski
+
+Accuracy nawet się poprawiło bo podziale na zbiór treningowy i uczący, byćmoże trafiliśmy na "łatwy" zbiór testowy.
+
+## kNN
+
+```{r}
+train <- subset(dataframe, trainIndex)
+test <- subset(dataframe, !trainIndex)
+train = na.omit(train)[c("key", "danceability", "valence", "energy", "acousticness")]
+test = na.omit(test)[c("key", "danceability", "valence", "energy", "acousticness")]
+
+train_labels <- train$key
+test_labels <- test$key
+
+# Remove 'key' column from train and test
+train$key <- NULL
+test$key <- NULL
+
+knn_result <- knn(train=train, test=test, cl=train_labels, k=3)
+
+confusionMatrix <- table(pred=knn_result, true=test_labels)
+
+accuracy <- sum(diag(confusionMatrix)) / sum(confusionMatrix)
+print(accuracy)
+```
+
+#### Wnioski
+
+Gorze wyniki niż dla normalnej klasyfikacji, kNN słabo działa dal tego zbioru danych.
+
+# Resampling
+
+## Ładowanie zbioru danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, streams = as.numeric(streams))
+
+library(class)
+library(MASS)
+head(dataframe)
+```
+
+## Walidacja krzyżowa
+
+Usuwamy NA
+
+```{r}
+dataframe <- na.omit(dataframe)
+```
+
+### Metoda zbioru walidacyjnego
+
+Tworzymy zbiór uczący z połowy dostępnych obserwacji --- reszta będzie stanowić zbiór walidacyjny. Dla zapewnienia powtarzalności obliczeń stosujemy funkcję `set.seed`.
+
+```{r}
+set.seed(1)
+n <- nrow(dataframe)
+train <- sample(n, n / 2)
+```
+
+Dopasowujemy model liniowy na zbiorze uczącym, następnie obliczamy MSE dla zbioru walidacyjnego.
+
+```{r}
+dataframe_lm <- lm(streams ~ liveness, data = dataframe, subset = train)
+validation_set <- dataframe[-train,]
+mse <- mean((validation_set$streams - predict(dataframe_lm, validation_set))^2)
+mse
+```
+
+Powtarzamy to samo dla regresji wielomianowej wyższych stopni
+
+```{r}
+for (i in 2:5) {
+  dataframe_lm_poly <- lm(streams ~ poly(liveness, degree = i), data = dataframe, 
+                     subset = train)
+  print(mean((validation_set$streams - predict(dataframe_lm_poly, validation_set))^2))
+}
+```
+
+#### Wnioski
+
+Ciężko wnioskować liczbę odsłuchań na podstawie tego czy piosenka jest wyknoywana na żywo. A jeśli juz musimy to lepiej użyć niskiego współczynnika wielomianu.
+
+Powtarzamy obliczenia dla innego zbioru walidacyjnego.
+
+```{r}
+set.seed(2)
+train <- sample(n, n / 2)
+validation_set <- dataframe[-train,]
+degree_max <- 5
+mse <- rep(0, times = degree_max)
+for (i in 1:degree_max) {
+  dataframe_lm <- lm(streams ~ poly(liveness, degree = i), data = dataframe, subset = train)
+  mse[i] <- mean((validation_set$streams - predict(dataframe_lm, validation_set))^2)
+}
+mse
+```
+
+#### Wnioski
+
+Nieco inne wyniki - co było oczekiwane
+
+Otrzymane wyniki można zobrazować na wykresie
+
+```{r}
+plot(mse, xlab = "Stopień wielomianu", ylab = "MSE", type = "b", pch = 20, 
+     col = "blue")
+```
+
+### Walidacja krzyżowa *bez jednego* (*leave-one-out*)
+
+Walidację krzyżową dla uogólnionych modeli liniowych wykonuje funkcja `cv.glm()` z pakietu `boot`. Jej argumentem (`glmfit`) jest obiekt klasy `glm`, więc jeśli chcemy jej użyć do walidacji zwykłych modeli liniowych, musimy je dopasowywać jako uogólnione modele liniowe (z `family = gaussian`, co zresztą jest wartością domyślną). Funkcja `cv.glm()` zwraca listę (zobacz `?cv.glm`), której najbardziej interesującą składawą jest `delta` --- wektor o długości 2 zawierający estymatę błędu predykcji w wersji oryginalnej i skorygowaną dla uwzględnienia obciążenia wprowadzanego przez walidację krzyżową inną niż LOOCV.
+
+```{r}
+library(boot)
+
+compute_loocv_mse <- function(degree) {
+  dataframe_glm <- glm(streams ~ poly(liveness, degree), data = dataframe)
+  cv.glm(dataframe, dataframe_glm)$delta[1]
+}
+mse <- sapply(1:degree_max, compute_loocv_mse)
+mse
+```
+
+Można też narysować obrazek
+
+```{r}
+plot(mse, xlab = "Stopień wielomianu", ylab = "LOOCV MSE", type = "b", pch = 20, 
+     col = "blue")
+```
+
+[**Co teraz z wnioskami na temat regresji wielomianowej w naszym przypadku?**]
+
+MSE jest jeszcze gorsze.
+
+### $k$-krotna walidacja krzyżowa
+
+Podobnie korzystamy z funkcji `cv.glm()`, tylko teraz jawnie ustawiamy parametr `K` oznaczający liczbę grup (*folds*). Np. dla $k = 10$ wygląda to jak poniżej.
+
+```{r kcv}
+compute_kcv_mse <- function(degree, k) {
+  dataframe_glm <- glm(streams ~ poly(liveness, degree), data = dataframe)
+  cv.glm(dataframe, dataframe_glm, K = k)$delta[1]
+}
+mse <- sapply(1:degree_max, compute_kcv_mse, k = 10)
+mse
+```
+
+Oczywiście tym razem wyniki są losowe. Możemy zrobić ich zestawienie dla np. 10 prób.
+
+```{r kcv2}
+mse10 <- replicate(10, sapply(1:degree_max, compute_kcv_mse, k = 10))
+mse10
+```
+
+#### Wnioski
+
+Nie mieliśmy pecha, po prostu dopasowywanie modeli gaussowskich tutaj nie działa. Prawdopodbnie przewidywanie liczby odsłuchań jest po prostu strasznie trudne.
+
+## Bootstrap
+
+Użyjemy metody *bootstrap* do oszacowania błędów standardowych współczynników regresji liniowej. Podstawową funkcją jest tutaj `boot()` z pakietu `boot`. Wymaga ona jako parametru funkcji obliczającej interesującą statystykę dla podanego zbioru danych. Ta ostatnia funkcja powinna akceptować dwa parametry: zbiór danych oraz wektor indeksów (istnieją też inne możliwości: `?boot`).
+
+```{r}
+lm_coefs <- function(data, index = 1:nrow(data)) {
+  coef(lm(streams ~ liveness, data = dataframe, subset = index))
+}
+```
+
+Funkcja `lm_coefs()` oblicza estymaty współczynników regresji dla zbioru danych typu bootstrap utworzonego z `Auto`:
+
+```{r}
+n <- nrow(dataframe)
+lm_coefs(dataframe, sample(n, n, replace = TRUE))
+```
+
+Oczywiście jednym z takich zbiorów jest sam oryginał
+
+```{r}
+lm_coefs(dataframe)
+```
+
+Obliczenie błędów standardowych metodą bootstrap z 1000 replikacji wygląda następująco.
+
+```{r boot}
+boot(dataframe, lm_coefs, R = 1000)
+```
+
+# Selekcja
+
+## Ładowanie zbioru danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, streams = as.numeric(streams))
+
+head(dataframe)
+```
+
+```{r setup, include=FALSE}
+library(MASS)
+library(ISLR)
+library(leaps)
+```
+
+## Selekcja cech dla modeli liniowych
+
+```{r}
+dataframe <- na.omit(dataframe)
+```
+
+Metody selekcji cech są zaimplementowane w funkcji `regsubsets()` z pakietu `leaps`.
+
+### Wybór najepszego podzbioru
+
+```{r}
+dataframe_bs <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, really.big=T)
+summary(dataframe_bs)
+```
+
+#### Wnioski
+
+Jak widzimy najistotniejszymi cechami jest to w ilu playlistach znajuje się na różnych platformach. Ważna okazuje się także energia, liczba artystów którzy pracowali przy piosence i co zaskakujące, to czy jest w kluczu G!
+
+Jak można zobaczyć, funkcja `regsubsets()` domyślnie uwzględnia maksymalnie 8 predyktorów. Jeśli chcemy to zmienić, musimy użyć parametru `nvmax`.
+
+```{r}
+dataframe_bs <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, nvmax = 19, really.big=T)
+dataframe_bs_sum <- summary(dataframe_bs)
+dataframe_bs_sum
+```
+
+#### Wnioski
+
+Widzimy, że w większości klucz nie ma pwływu na liczbę odsłuchań. Co ciekawe nieistotne jest też czy piosenka była wykonywana na żywo, a takze to czy jest pozytywna czy negatywna (valance)
+
+Obiekt zwracany przez funkcję `summary.regsubsets()` zawiera informacje umożliwiające zidentyfikowanie globalnie najlepszego pozdbioru cech, np. miarę $C_p$.
+
+```{r}
+dataframe_bs_sum$cp
+```
+
+Najlepszy podzbiór według kryterium BIC
+
+```{r}
+bic_min <- which.min(dataframe_bs_sum$bic)
+bic_min
+dataframe_bs_sum$bic[bic_min]
+```
+
+Stosowny obrazek
+
+```{r}
+{
+plot(dataframe_bs_sum$bic, xlab = "Liczba zmiennych", ylab = "BIC", col = "green",
+     type = "b", pch = 20)
+points(bic_min, dataframe_bs_sum$bic[bic_min], col = "red", pch = 9)
+}
+```
+
+#### Wnioski
+
+Najlepiej zachować około 7 cech, dokładanie kolejnych pogarasza model.
+
+Dostępny jest też specjalny rodzaj wykresu (`?plot.regsubsets`).
+
+```{r}
+plot(dataframe_bs, scale = "bic")
+```
+
+Estymaty współczynników dla optymalnego podzbioru
+
+```{r}
+coef(dataframe_bs, id = 6)
+```
+
+[**Zrób podobną analizę dla innych kryteriów optymalności:** $C_p$ i poprawionego $R^2$. Zwróć uwagę na to, że poprawione $R^2$ powinno być *zmaksymalizowane*.]
+
+Najlepszy podzbiór według kryterium $C_p$
+
+```{r}
+cp_min <- which.min(dataframe_bs_sum$cp)
+cp_min
+dataframe_bs_sum$cp[cp_min]
+```
+
+Stosowny obrazek
+
+```{r}
+{
+plot(dataframe_bs_sum$cp, xlab = "Liczba zmiennych", ylab = "BIC", col = "green",
+     type = "b", pch = 20)
+points(cp_min, dataframe_bs_sum$cp[cp_min], col = "red", pch = 9)
+}
+```
+
+Dostępny jest też specjalny rodzaj wykresu (`?plot.regsubsets`).
+
+```{r}
+plot(dataframe_bs, scale = "Cp")
+```
+
+Estymaty współczynników dla optymalnego podzbioru
+
+```{r}
+coef(dataframe_bs, id = 6)
+```
+
+### Selekcja krokowa do przodu i wstecz
+
+Funkcja `regsubsets()` z odpowiednio ustawionym parametrem `method` może przeprowadzić selekcję krokową.
+
+```{r}
+dataframe_fwd <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, nvmax = 19, 
+                          method = "forward")
+dataframe_fwd_sum <- summary(dataframe_fwd)
+dataframe_fwd_sum
+dataframe_back <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, nvmax = 19, 
+                           method = "backward")
+dataframe_back_sum <- summary(dataframe_back)
+dataframe_back_sum
+```
+
+#### Wnioski
+
+Wnioski takie same jak przy selekcji nie-krokowwej.
+
+### Wybór modelu przy pomocy metody zbioru walidacyjnego
+
+Estymaty błędów testowych będą dokładne tylko jeśli wszystkie aspekty dopasowania modelu --- w tym selekcję zmiennych --- przeprowadzimy z użyciem wyłącznie **zbioru uczącego**.
+
+```{r}
+n <- nrow(dataframe)
+train <- sample(c(TRUE, FALSE), n, replace = TRUE)
+test <- !train
+dataframe_bs_v <- regsubsets(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe[train,], nvmax = 19)
+```
+
+Niestety dla modeli zwracanych przez `regsubsets` nie ma odpowiedniej metody `predict()`. Może ona mieć następującą postać (funkcja `model.matrix()` tworzy macierz $X$ dla podanych punktów).
+
+```{r}
+predict.regsubsets <- function(object, newdata, id, ...) {
+  model_formula <- as.formula(object$call[[2]])
+  mat <- model.matrix(model_formula, newdata)
+  coefs <- coef(object, id = id)
+  mat[, names(coefs)] %*% coefs
+}
+```
+
+Liczymy estymaty błędów
+
+```{r}
+prediction_error <- function(i, model, subset) {
+  pred <- predict(model, dataframe[subset,], id = i)
+  mean((dataframe$streams[subset] - pred)^2)
+}
+val_errors <- sapply(1:19, prediction_error, model = dataframe_bs_v, subset = test)
+val_errors
+```
+
+#### Wnioski
+
+Optymalny model zawiera tylko 4 cechy
+
+# Regularyzacja
+
+## Ładnowanie danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, streams = as.numeric(streams))
+
+head(dataframe)
+```
+
+```{r}
+library(glmnet)
+dataframe <- na.omit(dataframe)
+```
+
+## Regularyzacja
+
+Obie omawiane na wykładzie metody regularyzacji są zaimplementowane w funkcji `glmnet()` z pakietu `glmnet`.
+
+Funkcja `glmnet::glmnet()` ma składnię odmienną od `lm()` i jej podobnych. Dane wejściowe muszą być podane odmiennie. Trzeba w szczególności samodzielnie skonstruować macierz $\mathbf{X}$
+
+```{r}
+X <- model.matrix(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe)[, -1]
+y <- dataframe$streams
+```
+
+Argument `alpha` funkcji `glmnet()` decyduje o typie użytej regularyzacji: `0` oznacza regresję grzbietową, a `1` lasso.
+
+### Regresja grzbietowa
+
+Wykonujemy regresję grzbietową dla jawnie określonych wartości $\lambda$. *Podany ciąg* $\lambda$ powinien być malejący. Funkcja `glmnet()` domyślnie dokonuje standaryzacji zmiennych.
+
+```{r}
+lambda_grid <- 10^seq(10, -2, length.out = 100)
+fit_ridge <- glmnet(X, y, alpha = 0, lambda = lambda_grid)
+```
+
+Dla każdej wartości $\lambda$ otrzymujemy zestaw estymat predyktorów dostępnych w postaci macierzy
+
+```{r}
+dim(coef(fit_ridge))
+```
+
+Można sprawdzić, że większe wartości $\lambda$ dają mniejszą normę euklidesową współczynników (pomijamy wyraz wolny).
+
+```{r}
+fit_ridge$lambda[50]
+coef_ridge <- coef(fit_ridge)[, 50]
+coef_ridge
+sqrt(sum(coef_ridge[-1]^2))
+```
+
+Natomiast mniejsze wartości $\lambda$ dają większą normę euklidesową współczynników
+
+```{r}
+fit_ridge$lambda[70]
+coef(fit_ridge)[, 70]
+sqrt(sum(coef(fit_ridge)[-1, 70]^2))
+```
+
+Przy pomocy funkcji `predict.glmnet()` można uzyskać np. wartości estymat współczynników dla nowej wartości $\lambda$ (np. 50)
+
+```{r}
+predict(fit_ridge, s = 50, type = "coefficients")
+```
+
+Estymujemy testowy MSE
+
+```{r}
+set.seed(1)
+n <- nrow(X)
+train <- sample(n, n / 2)
+test <- -train
+fit_ridge <- glmnet(X[train,], y[train], alpha = 0, lambda = lambda_grid,
+                    thresh = 1e-12)
+```
+
+Dla $\lambda = 4$
+
+```{r}
+pred_ridge <- predict(fit_ridge, s = 4, newx = X[test,])
+mean((pred_ridge - y[test])^2)
+```
+
+Testowy MSE dla modelu zerowego (sam wyraz wolny)
+
+```{r}
+pred_null <- mean(y[train])
+mean((pred_null - y[test])^2)
+```
+
+Testowy MSE dla bardzo dużej wartości $\lambda = 10^{10}$
+
+```{r}
+pred_ridge_big <- predict(fit_ridge, s = 1e10, newx = X[test,])
+mean((pred_ridge_big - y[test])^2)
+```
+
+[**Jak wygląda porównanie?**]
+
+Testowy MSE dla $\lambda = 0$ (metoda najmniejszych kwadratów)
+
+```{r}
+pred_ridge_0 <- predict(fit_ridge, x = X[train,], y = y[train], s = 0, 
+                      newx = X[test,], exact = TRUE)
+mean((pred_ridge_0 - y[test])^2)
+```
+
+Porównanie estymat współczynników
+
+```{r}
+lm(y ~ X, subset = train)
+predict(fit_ridge, x = X[train,], y = y[train], s = 0, exact = TRUE, 
+        type = "coefficients")[1:20,]
+```
+
+Wyliczenie optymalnej wartości $\lambda$ przy pomocy walidacji krzyżowej
+
+```{r}
+set.seed(1)
+cv_out <- cv.glmnet(X[train,], y[train], alpha = 0)
+plot(cv_out)
+cv_out$lambda.min
+```
+
+MSE dla optymalnego $\lambda$
+
+```{r}
+pred_ridge_opt <- predict(fit_ridge, s = cv_out$lambda.min, newx = X[test,])
+mean((pred_ridge_opt - y[test])^2)
+```
+
+Estymaty współczynników dla optymalnego $\lambda$
+
+```{r}
+fit_ridge_full <- glmnet(X, y, alpha = 0)
+predict(fit_ridge_full, s = cv_out$lambda.min, type = "coefficients")
+```
+
+#### Wnioski
+
+Regularyzacja nic nie pomogła.
+
+### Lasso
+
+Dopasowujemy lasso dla ustalonej siatki parametrów regularyzacji
+
+```{r}
+fit_lasso <- glmnet(X[train,], y[train], alpha = 1)
+plot(fit_lasso, xvar = "lambda")
+```
+
+Wykonujemy walidację krzyżową i liczymy estymatę MSE
+
+```{r}
+cv_out <- cv.glmnet(X[train,], y[train], alpha = 1)
+plot(cv_out)
+cv_out$lambda.min
+pred_lasso <- predict(fit_lasso, s = cv_out$lambda.min, newx = X[test,])
+mean((pred_lasso - y[test])^2)
+```
+
+[**Jak wygląda porównanie z modelem zerowym, metodą najmniejszych kwadratów i regresją grzbietową?**]
+
+Estymaty współczynników dla optymalnego $\lambda$
+
+```{r}
+fit_lasso_full <- glmnet(X, y, alpha = 1)
+predict(fit_lasso_full, s = cv_out$lambda.min, type = "coefficients")[1:20,]
+```
+
+# Modele nieliniowe
+
+## Ładowanie zbioru danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, streams = as.numeric(streams))
+dataframe = na.omit(dataframe)
+
+head(dataframe)
+```
+
+```{r}
+library(splines)
+library(gam)
+```
+
+## Modele nieliniowe
+
+### Regresja wielomianowa
+
+```{r}
+fit_poly <- lm(streams ~ poly(energy, 4), data = dataframe)
+summary(fit_poly)
+```
+
+To samo z użyciem standardowej bazy wielomianów $X, X^2, X^3, X^4$.
+
+```{r}
+fit_poly_raw <- lm(streams ~ poly(energy, 4, raw = TRUE), data = dataframe)
+summary(fit_poly_raw)
+```
+
+To samo, co powyżej, inaczej zapisane
+
+```{r}
+fit_poly_raw <- lm(streams ~ energy + I(energy^2) + I(energy^3) + I(energy^4), data = dataframe)
+summary(fit_poly_raw)
+```
+
+Obrazek dopasowania zawierający krzywe błędu standardowego.
+
+```{r}
+energy_lims <- range(dataframe$energy)
+energy_grid <- seq(energy_lims[1], energy_lims[2])
+pred_poly <- predict(fit_poly, list(energy = energy_grid), se.fit = TRUE)
+se_bands <- cbind(pred_poly$fit + 2 * pred_poly$se.fit, 
+                  pred_poly$fit - 2 * pred_poly$se.fit)
+{
+plot(dataframe$energy, dataframe$streams, col = "darkgrey", cex = 0.5, xlim = energy_lims)
+lines(energy_grid, pred_poly$fit, col = "red", lwd = 2)
+matlines(energy_grid, se_bands, col = "red", lty = "dashed")
+}
+```
+
+#### Wnioski
+
+Ponownie mmierzymy się z tym, że liczba odsłuchań jest trudna do przewidzenia.
+
+### Regresja logistyczna wielomianowa
+
+Chcemy skonstruować klasyfikator z dwoma klasami: popularne piosenki (więcej niż 10\^9 odsłuchań) i mniej popularne
+
+```{r}
+fit_log_poly <- glm(I(streams > 1000000000) ~ poly(energy, 4), data = dataframe, family = binomial)
+```
+
+Funkcja `predict.glm()` standardowo zwraca szanse logarytmiczne, co jest korzystne z punktu widzenia zobrazowania błędu standardowego. Musimy jednak otrzymane wartości przekształcić funkcją logistyczną.
+
+```{r}
+pred_log_poly <- predict(fit_log_poly, list(energy = energy_grid), se.fit = TRUE)
+pred_probs <- plogis(pred_log_poly$fit)
+se_bands_logit <- cbind(pred_log_poly$fit + 2 * pred_log_poly$se.fit,
+                        pred_log_poly$fit - 2 * pred_log_poly$se.fit)
+se_bands <- plogis(se_bands_logit)
+plot(dataframe$energy, I(dataframe$streams > 250), xlim = energy_lims, ylim = c(0, 1), 
+     col = "darkgrey", cex = 0.5, ylab = "P(streams > 10^9 | energy)")
+lines(energy_grid, pred_probs, col = "red", lwd = 2)
+matlines(energy_grid, se_bands, lty = "dashed", col = "red")
+```
+
+#### Wnioski
+
+Największą szanse na bycie popularnymi mają piosenki albo o stosunkowo niskiej energii (około 30) albo wysokiejh (około 85).
+
+### Funkcje schodkowe
+
+Dopasowanie funkcji schodkowej wykonujemy przy pomocy funkcji `cut()` przekształcającej zmienną numeryczną w czynnik uporządkowany.
+
+```{r}
+table(cut(dataframe$energy, breaks = 4))
+```
+
+Samo dopasowanie wykonuje funkcja `lm()`.
+
+```{r}
+fit_step <- lm(streams ~ cut(energy, 4), data = dataframe)
+pred_step <- predict(fit_step, list(energy = energy_grid), se.fit = TRUE)
+se_bands <- cbind(pred_step$fit + 2 * pred_step$se.fit, 
+                  pred_step$fit - 2 * pred_step$se.fit)
+plot(dataframe$energy, dataframe$streams, col = "darkgrey", cex = 0.5, xlim = energy_lims)
+lines(energy_grid, pred_step$fit, col = "red", lwd = 2)
+matlines(energy_grid, se_bands, col = "red", lty = "dashed")
+```
+
+### Funkcje sklejane
+
+Bazę regresyjnych funkcji sklejanych wylicza funkcja `bs()` z pakietu `splines`. Domyślnym stopniem funkcji sklejanych jest 3.
+
+Regresja z użyciem funkcji sklejanych z ustalonymi węzłami.
+
+```{r}
+fit_bs_knots <- lm(streams ~ bs(energy, knots = c(25, 40, 60)), data = dataframe)
+pred_bs_knots <- predict(fit_bs_knots, list(energy = energy_grid), se.fit = TRUE)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(energy_grid, pred_bs_knots$fit, col = "red", lwd = 2)
+lines(energy_grid, pred_bs_knots$fit + 2 * pred_bs_knots$se.fit, col = "red",
+      lty = "dashed")
+lines(energy_grid, pred_bs_knots$fit - 2 * pred_bs_knots$se.fit, col = "red",
+      lty = "dashed")
+abline(v = c(25, 40, 60), lty = "dotted")
+```
+
+[**Sprawdź jak ustawienie węzłów wpływa na dopasowany model.**]
+
+Dopasowanie modelu wykorzystującego funkcje sklejane o ustalonej liczbie stopni swobody. Węzły są rozmieszczane automatycznie.
+
+```{r}
+fit_bs_dataframe <- lm(streams ~ bs(energy, df = 6), data = dataframe)
+pred_bs_dataframe <- predict(fit_bs_dataframe, list(energy = energy_grid), se.fit = TRUE)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(energy_grid, pred_bs_dataframe$fit, col = "red", lwd = 2)
+lines(energy_grid, pred_bs_dataframe$fit + 2 * pred_bs_dataframe$se.fit, col = "red",
+      lty = "dashed")
+lines(energy_grid, pred_bs_dataframe$fit - 2 * pred_bs_dataframe$se.fit, col = "red",
+      lty = "dashed")
+bs_knots <- attr(bs(dataframe$energy, df = 6), "knots")
+abline(v = bs_knots, lty = "dotted")
+```
+
+[**Sprawdź jak liczba stopni swobody wpływa na dopasowany model.**]
+
+[**Funkcja `bs()` akceptuje parametr `degree`, który ustala stopień funkcji sklejanej. Sprawdź jak w powyższych przykładach wyglądają funkcje sklejane innych stopni.**]
+
+### Naturalne funkcje sklejane
+
+Bazę naturalnych *sześciennych* funkcji sklejanych wyznacza funkcja `ns()` z pakietu `splines`.
+
+```{r}
+fit_ns <- lm(streams ~ ns(energy, df = 4), data = dataframe)
+pred_ns <- predict(fit_ns, list(energy = energy_grid), se.fit = TRUE)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(energy_grid, pred_ns$fit, col = "red", lwd = 2)
+lines(energy_grid, pred_ns$fit + 2 * pred_ns$se.fit, col = "red",
+      lty = "dashed")
+lines(energy_grid, pred_ns$fit - 2 * pred_ns$se.fit, col = "red",
+      lty = "dashed")
+abline(v = attr(ns(dataframe$energy, df = 4), "knots"), lty = "dotted")
+```
+
+Dopasowanie wygładzającej (sześciennej) funkcji sklejanej do danych wykonuje funkcja `smooth.spline()`. Możemy dopasować wygładzającą funkcję sklejaną o ustalonej liczbie stopni swobody (tu 16).
+
+```{r}
+fit_smooth_dataframe <- smooth.spline(dataframe$energy, dataframe$streams, df = 16)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(fit_smooth_dataframe, col = "red", lwd = 2)
+```
+
+Można też liczbę stopni swobody wyznaczyć automatycznie korzystając z walidacji krzyżowej.
+
+```{r, warning=FALSE}
+fit_smooth_cv <- smooth.spline(dataframe$energy, dataframe$streams, cv = TRUE)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(fit_smooth_cv, col = "red", lwd = 2)
+```
+
+### Regresja lokalna
+
+Regresję lokalną (domyślnie wielomianami stopnia 2) wykonuje funkcja `loess()`. Parametr funkcji o nazwie `span` odpowiada parametrowi metody $s$.
+
+```{r}
+spans <- c(0.2, 0.5)
+clrs <- c("red", "blue")
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+for (i in 1:length(spans)) {
+   fit_loess <- loess(streams ~ energy, span = spans[i], data = dataframe)
+   pred_loess <- predict(fit_loess, data.frame(energy = energy_grid))
+   lines(energy_grid, pred_loess, col = clrs[i], lwd = 2)
+}
+legend("topright", legend = paste("s =", spans), col = clrs, lty = 1, lwd = 2)
+```
+
+To samo dla wielomianów stopnia 1.
+
+```{r}
+spans <- c(0.2, 0.5)
+clrs <- c("red", "blue")
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+for (i in 1:length(spans)) {
+   fit_loess <- loess(streams ~ energy, span = spans[i], degree = 1, data = dataframe)
+   pred_loess <- predict(fit_loess, data.frame(energy = energy_grid))
+   lines(energy_grid, pred_loess, col = clrs[i], lwd = 2)
+}
+legend("topright", legend = paste("s =", spans), col = clrs, lty = 1, lwd = 2)
+```
+
+### Uogólnione modele addytywne (GAMs)
+
+GAM będący rozwinięciem modelu liniowego może być uczony metodą najmniejszych kwadratów przy pomocy funkcji `lm()`.
+
+```{r}
+fit_gam_ls <- lm(streams ~ ns(liveness, df = 4) + ns(energy, df = 5) + speechiness,
+                 data = dataframe)
+fit_gam_ls
+summary(fit_gam_ls)
+```
+
+Ogólniejsze GAM są uczone przy pomocy algorytmu dopasowania wstecznego w funkcji `gam()` z pakietu `gam`. Pakiet `gam` zawiera też funkcje implementujące modele nieparametryczne: `s()` reprezentującą wygładzające funkcje sklejane i `lo()` reprezentującą lokalną regresję.
+
+Dopasowanie modelu podobnego do poprzedniego, ale z użyciem wygładzających funkcji sklejanych.
+
+```{r}
+fit_gam_bf <- gam(streams ~ s(liveness, df = 4) + s(energy, df = 5) + speechiness, data = dataframe)
+summary(fit_gam_bf)
+```
+
+Wykres dla modelu dopasowanego funkcją `gam()`.
+
+```{r}
+par(mfrow = c(1, 3))
+plot(fit_gam_bf, col = "red", se = TRUE)
+```
+
+Funkcja `plot.Gam()` działa też dla modeli metody najmniejszych kwadratów, ale wówczas trzeba się do niej odwołać jawnie.
+
+```{r}
+par(mfrow = c(1, 3))
+plot.Gam(fit_gam_ls, col = "red", se = TRUE)
+```
+
+Istnieje wersja funkcji `anova()` porównująca GAMs.
+
+```{r}
+fit_gam_1 <- gam(streams ~ s(energy, df = 5) + speechiness, data = dataframe)
+fit_gam_2 <- gam(streams ~ liveness + s(energy, df = 5) + speechiness, data = dataframe)
+anova(fit_gam_1, fit_gam_2, fit_gam_bf, test = "F")
+```
+
+Dopasowanie modelu wykorzystującego lokalną regresję.
+
+```{r}
+fit_gam_lo <- gam(streams ~ s(liveness, df = 4) + lo(energy, span = 0.7) + speechiness, 
+                  data = dataframe)
+summary(fit_gam_lo)
+par(mfrow = c(1, 3))
+plot(fit_gam_lo, col = "green", se = TRUE)
+```
+
+### GAM w GLM
+
+Regresja logistyczna wykorzystująca GAM
+
+```{r}
+fit_logistic_gam <- gam(I(streams > 1000000000) ~ liveness + s(energy, df = 5) + speechiness, 
+                        family = binomial, data = dataframe)
+summary(fit_logistic_gam)
+par(mfrow = c(1, 3))
+plot(fit_logistic_gam, col = "blue", se = TRUE)
+```
+
+#### Wnioski
+
+Modele sprawdziły się słabo, trzeba było wybrać inny dataset albo przewidywać inne rzeczy :(
+
+# Drzewa
+
+## Ładowanie zbioru danych
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, liveness = as.numeric(liveness))
+dataframe = na.omit(dataframe)
+
+head(dataframe)
+```
+
+```{r}
+library(tree)
+library(randomForest)
+library(gbm)
+```
+
+## Drzewa decyzyjne
+
+Drzewa decyzyjne są zaimplementowane w pakiecie `tree` (nieco odmienna implementacja dostępna jest w pakiecie `rpart`).
+
+### Drzewa klasyfikacyjne
+
+Będziemy klasyfikować obserwacje do dwóch klas: *wykonywane na zywo* i *nie wykonywane na żywo*. Uzupełniamy zbiór danych
+
+```{r}
+live <- factor(ifelse(dataframe$liveness <= 50, "No", "Yes"))
+dataframeLive <- data.frame(dataframe, live)
+```
+
+Budujemy drzewo klasyfikacyjne do predykcji `live` na podstawie pozostałych zmiennych (poza `liveness` i kilku innych).
+
+```{r}
+liveness_high_tree <- tree(live ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - liveness, data = dataframeLive)
+summary(liveness_high_tree)
+```
+
+Przedstawienie graficzne dopasowanego modelu
+
+```{r}
+{
+plot(liveness_high_tree)
+text(liveness_high_tree, pretty = 0)
+}
+```
+
+#### Winoski
+
+Widzimy, że zdecydowanie łatwiej zaklasyfikować piosenkę jako niewykonywaną na żywo. Albo piosneek z dużym liveness (\<50) jest mało. W każdym razie drzewo znalazło pewien wąski zakres pozostałych paramterów który pozwala wykryć takie piosenki.
+
+Więcej informacji podaje funkcja `print.tree()`
+
+```{r}
+liveness_high_tree
+```
+
+#### Wnioski
+
+Istotne są energia, in_apple_playlists i bpm.
+
+Metodą zbioru walidacyjnego estymujemy błąd testowy dla drzewa klasyfikacyjnego w rozważanym problemie.
+
+```{r}
+set.seed(1)
+n <- nrow(dataframeLive)
+train <- sample(n, n / 2)
+test <- -train
+liveness_high_tree <- tree(live ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - liveness, data = dataframeLive, subset = train)
+tree_class <- predict(liveness_high_tree, newdata = dataframeLive[test,], type = "class")
+table(tree_class, dataframeLive$live[test])
+mean(tree_class != dataframeLive$live[test])
+```
+
+*Duże* drzewo $T_0$ dla zbioru uczącego `dataframeLive[train,]`
+
+```{r}
+{
+plot(liveness_high_tree)
+text(liveness_high_tree, pretty = 0)
+}
+```
+
+Do znalezienia optymalnego poddrzewa stosujemy przycinanie stosowane złożonością. Przy pomocy CV konstruujemy ciąg poddrzew wyznaczony przez malejącą złożoność.
+
+```{r}
+set.seed(1)
+liveness_high_cv <- cv.tree(liveness_high_tree, FUN = prune.misclass)
+liveness_high_cv
+plot(liveness_high_cv$size, liveness_high_cv$dev, type = "b")
+```
+
+Składowa `liveness_high_cv$dev` zawiera liczbę błędów CV. Przycinamy drzewo $T_0$ do poddrzewa z najmniejszym poziomem błędów CV.
+
+```{r}
+size_opt <- liveness_high_cv$size[which.min(liveness_high_cv$dev)]
+# niestety size_opt = 1 i nie da się tego wyświetlić
+liveness_high_pruned <- prune.misclass(liveness_high_tree, best = 5)
+{
+plot(liveness_high_pruned)
+text(liveness_high_pruned, pretty = 0)
+}
+```
+
+#### Wnioski
+
+Optymalne drzewo miało tylko jeden poziom i z jakiegoś powodu nie mogło zostać narysowane, rysuję wiec takie. Zgadza się to z intuicją co do istotnych cech.
+
+Testowy poziom błędów dla optymalnego poddrzewa.
+
+```{r}
+pruned_class <- predict(liveness_high_pruned, newdata = dataframeLive[test,], 
+                        type = "class")
+table(pruned_class, dataframeLive$live[test])
+mean(pruned_class != dataframeLive$live[test])
+```
+
+### Drzewa regresyjne
+
+```{r}
+liveness_tree <- tree(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe)
+summary(liveness_tree)
+```
+
+*Deviance* oznacza tutaj RSS. Przedstawienie drzewa
+
+```{r}
+{
+liveness_tree
+plot(liveness_tree)
+text(liveness_tree)
+}
+```
+
+#### Wnioski
+
+Ponownie istotna jest energia i BPM, ma sens pod kątem wystąpień na żywo.
+
+Metodą zbioru walidacyjnego szacujemy błąd testowy.
+
+```{r}
+set.seed(1)
+n <- nrow(dataframe)
+train <- sample(n, n / 2)
+test <- -train
+liveness_tree <- tree(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train)
+liveness_pred <- predict(liveness_tree, newdata = dataframe[test,])
+mean((liveness_pred - dataframe$liveness[test])^2)
+```
+
+```{r}
+{
+plot(liveness_tree)
+text(liveness_tree)
+}
+```
+
+Wyznaczamy optymalne poddrzewo metodą przycinania sterowanego złożonością.
+
+```{r}
+liveness_cv <- cv.tree(liveness_tree)
+plot(liveness_cv$size, liveness_cv$dev, type = "b")
+```
+
+#### Wnioski
+
+Najlepiej działa drzewo o rozmiarze 3.
+
+Przycinanie drzewa $T_0$ do żądanego poziomu realizuje w tym przypadku funkcja `prune.tree()`.
+
+```{r}
+liveness_pruned <- prune.tree(liveness_tree, best = 4)
+plot(liveness_pruned)
+text(liveness_pruned)
+```
+
+[**Oblicz estymatę błędu testowego dla poddrzewa z 4 liśćmi.**]
+
+## Bagging i lasy losowe
+
+Bagging i lasy losowe implementowane są przez pakiet `randomForest`. Oczywiście bagging jest szczególnym przypadkiem lasu losowego.
+
+### Bagging
+
+Bagging dla regresji `liveness` względem wszystkich pozostałych w zbiorze `dataframe`.
+
+```{r}
+liveness_bag <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, mtry = 13, importance = TRUE)
+liveness_bag
+```
+
+Wykres błędu OOB względem liczby drzew
+
+```{r}
+plot(liveness_bag, type = "l")
+```
+
+#### Wnioski
+
+Dodawanie więcej niż 100/200 drzew nie poprawia już wyniku.
+
+W przypadku regresji błąd MSE OOB dostępny jest w składowej `mse` obiektu klasy `randomForest`. W przypadku klasyfikacji wyniki analizy danych OOB dostępne są w składowych `err.rate` (proporcja błędów) i `confusion` (tabela pomyłek).
+
+Wyznaczenie ważności predyktorów
+
+```{r}
+importance(liveness_bag)
+```
+
+I stosowny obrazek
+
+```{r}
+varImpPlot(liveness_bag)
+```
+
+#### Wnioski
+
+Widzimy, że zdecydowanie najważneijsza jest energia i akustyczność. Potem także liczba playlist do których należy piosenka. Nie liczy się klucz czy instrumentalność.
+
+Oszacowanie błędu testowego dla poprzednio wyznaczonego zbioru walidacyjnego.
+
+```{r}
+set.seed(2)
+liveness_bag <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train, mtry = 13,
+                         importance = TRUE)
+liveness_pred_bag <- predict(liveness_bag, newdata = dataframe[test,])
+mean((liveness_pred_bag - dataframe$liveness[test])^2)
+```
+
+```{r}
+varImpPlot(liveness_bag)
+```
+
+#### Wnioski
+
+Cechy delikatnie się zmieniły.
+
+Powyższe dla mniejszej liczby hodowanych drzew
+
+```{r}
+set.seed(2)
+liveness_bag_s <- randomForest(liveness ~ ., data = dataframe, subset = train, mtry = 13,
+                         importance = TRUE, ntree = 25)
+liveness_pred_bag_s <- predict(liveness_bag_s, newdata = dataframe[test,])
+mean((liveness_pred_bag_s - dataframe$liveness[test])^2)
+```
+
+### Lasy losowe
+
+Domyślna wartość parametru `mtry` to $\sqrt{p}$ dla regresji i $p/3$ dla klasyfikacji.
+
+Oszacowanie błędu testowego dla poprzednio wyznaczonego zbioru walidacyjnego.
+
+```{r}
+set.seed(2)
+liveness_rf <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train,
+                         importance = TRUE)
+liveness_pred_rf <- predict(liveness_rf, newdata = dataframe[test,])
+mean((liveness_pred_rf - dataframe$liveness[test])^2)
+```
+
+#### Wnioski
+
+Wynik nieco lepszy niż przy baggingu
+
+Powyższe dla ręcznie ustawionego parametru $m$ (czyli `mtry`).
+
+```{r}
+set.seed(2)
+liveness_rf <- randomForest(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe, subset = train, mtry = 6,
+                         importance = TRUE)
+liveness_pred_rf <- predict(liveness_rf, newdata = dataframe[test,])
+mean((liveness_pred_rf - dataframe$liveness[test])^2)
+```
+
+## Boosting
+
+Używamy algorytmów boostingu dla drzew decyzyjnych zaimplementowanych w pakiecie `gbm`. Inną implementację --- wydajną i często pojawiającą się w zastosowaniach --- zawiera pakiet `xgboost`.
+
+Boosting dla regresji `liveness` względem pozostałych zmiennych ze zbioru `dataframe`. Funkcją dopasowującą model jest `gbm()` z istotnymi parametrami:
+
+-   `distribution`: `"gaussian"` dla regresji z RSS, `"bernoulli"` dla regresji typu logistycznego;
+
+-   `n.trees`: liczba hodowanych drzew ($B$);
+
+-   `interaction.depth`: głębokość interakcji ($d$);
+
+-   `shrinkage`: parametr spowalniający uczenie ($\lambda$).
+
+```{r}
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe, distribution = "gaussian",
+                  n.trees = 5000, interaction.depth = 4)
+liveness_boost
+```
+
+Funkcja `summary.gbm()` wyznacza ważność predyktorów i (domyślnie) wykonuje odpowiedni wykres.
+
+```{r}
+summary(liveness_boost)
+```
+
+#### Wnioski
+
+Pokrywa się ze wcześniejszymi odkryciami, liczba wystąpień na playlistach Spotify, energia i bpm najważneiszjymi cechami.
+
+Funkcja `plot.gbm()` wykonuje *wykresy częściowej zaleźności*.
+
+```{r}
+plot(liveness_boost, i.var = "acousticness")
+plot(liveness_boost, i.var = "energy")
+plot(liveness_boost, i.var = c("acousticness", "energy"))
+```
+
+Oszacowanie błędu testowego dla poprzednio wyznaczonego zbioru walidacyjnego.
+
+```{r}
+set.seed(2)
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe[train,], distribution = "gaussian",
+                  interaction.depth = 4, n.trees = 5000)
+liveness_pred_boost <- predict(liveness_boost, newdata = dataframe[test,], n.trees = 5000)
+mean((liveness_pred_boost - dataframe$liveness[test])^2)
+```
+
+To samo dla $\lambda = 0.01$.
+
+```{r}
+set.seed(2)
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe[train,], distribution = "gaussian",
+                  interaction.depth = 4, n.trees = 5000, shrinkage = 0.01)
+liveness_pred_boost <- predict(liveness_boost, newdata = dataframe[test,], n.trees = 5000)
+mean((liveness_pred_boost - dataframe$liveness[test])^2)
+```
+
+To samo dla $d = 1$.
+
+```{r}
+set.seed(2)
+liveness_boost <- gbm(liveness ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts - streams - key - mode, data = dataframe[train,], distribution = "gaussian",
+                  n.trees = 5000, shrinkage = 0.01)
+liveness_pred_boost <- predict(liveness_boost, newdata = dataframe[test,], n.trees = 5000)
+mean((liveness_pred_boost - dataframe$liveness[test])^2)
+```
+
+#### Wnioski
+
+Wyniki nieco gorsze niż dla prostych lasów losowych.

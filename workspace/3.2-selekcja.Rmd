@@ -189,8 +189,3 @@ Estymata błędu CV jest teraz średnią błędów w każdej grupie.
 cv_errors <- colMeans(val_err)
 cv_errors
 ```
-
-[**Ile zmiennych ma model optymalny według tego kryterium?**]
-
-Podobnie jak poprzednio, po wyznaczeniu optymalnej liczby zmiennych szukamy
-optymalnego modelu z tą liczbą zmiennych przy pomocy całego zbioru obserwacji.
