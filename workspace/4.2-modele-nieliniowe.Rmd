@@ -7,19 +7,19 @@ output: html_document
 ## Ładowanie zbioru danych
 
 ```{r}
-df = read.csv("spotify-2023.csv")
-names(df)[names(df) == "danceability_."] <- "danceability"
-names(df)[names(df) == "valence_."] <- "valence"
-names(df)[names(df) == "energy_."] <- "energy"
-names(df)[names(df) == "acousticness_."] <- "acousticness"
-names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
-names(df)[names(df) == "liveness_."] <- "liveness"
-names(df)[names(df) == "speechiness_."] <- "speechiness"
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
 
-df = transform(df, streams = as.numeric(streams))
-df = na.omit(df)
+dataframe = transform(dataframe, streams = as.numeric(streams))
+dataframe = na.omit(dataframe)
 
-head(df)
+head(dataframe)
 ```
 
 ```{r}
@@ -33,29 +33,29 @@ library(gam)
 ### Regresja wielomianowa
 
 ```{r}
-fit_poly <- lm(streams ~ poly(energy, 4), data = df)
+fit_poly <- lm(streams ~ poly(energy, 4), data = dataframe)
 summary(fit_poly)
 ```
 To samo z użyciem standardowej bazy wielomianów $X, X^2, X^3, X^4$.
 ```{r}
-fit_poly_raw <- lm(streams ~ poly(energy, 4, raw = TRUE), data = df)
+fit_poly_raw <- lm(streams ~ poly(energy, 4, raw = TRUE), data = dataframe)
 summary(fit_poly_raw)
 ```
 To samo, co powyżej, inaczej zapisane
 ```{r}
-fit_poly_raw <- lm(streams ~ energy + I(energy^2) + I(energy^3) + I(energy^4), data = df)
+fit_poly_raw <- lm(streams ~ energy + I(energy^2) + I(energy^3) + I(energy^4), data = dataframe)
 summary(fit_poly_raw)
 ```
 
 Obrazek dopasowania zawierający krzywe błędu standardowego.
 ```{r}
-energy_lims <- range(df$energy)
+energy_lims <- range(dataframe$energy)
 energy_grid <- seq(energy_lims[1], energy_lims[2])
 pred_poly <- predict(fit_poly, list(energy = energy_grid), se.fit = TRUE)
 se_bands <- cbind(pred_poly$fit + 2 * pred_poly$se.fit, 
                   pred_poly$fit - 2 * pred_poly$se.fit)
 {
-plot(df$energy, df$streams, col = "darkgrey", cex = 0.5, xlim = energy_lims)
+plot(dataframe$energy, dataframe$streams, col = "darkgrey", cex = 0.5, xlim = energy_lims)
 lines(energy_grid, pred_poly$fit, col = "red", lwd = 2)
 matlines(energy_grid, se_bands, col = "red", lty = "dashed")
 }
@@ -69,7 +69,7 @@ Predyktorem jest `energy`, ale chcemy też uwzględnić wpływ wyższych potęg 
 tej zmiennej.
 
 ```{r}
-fit_log_poly <- glm(I(streams > 250) ~ poly(energy, 4), data = df, family = binomial)
+fit_log_poly <- glm(I(streams > 250) ~ poly(energy, 4), data = dataframe, family = binomial)
 ```
 
 Funkcja `predict.glm()` standardowo zwraca szanse logarytmiczne, co jest
@@ -81,7 +81,7 @@ pred_probs <- plogis(pred_log_poly$fit)
 se_bands_logit <- cbind(pred_log_poly$fit + 2 * pred_log_poly$se.fit,
                         pred_log_poly$fit - 2 * pred_log_poly$se.fit)
 se_bands <- plogis(se_bands_logit)
-plot(df$energy, I(df$streams > 250), xlim = energy_lims, ylim = c(0, 1), 
+plot(dataframe$energy, I(dataframe$streams > 250), xlim = energy_lims, ylim = c(0, 1), 
      col = "darkgrey", cex = 0.5, ylab = "P(streams > 250 | energy)")
 lines(energy_grid, pred_probs, col = "red", lwd = 2)
 matlines(energy_grid, se_bands, lty = "dashed", col = "red")
@@ -93,16 +93,16 @@ matlines(energy_grid, se_bands, lty = "dashed", col = "red")
 Dopasowanie funkcji schodkowej wykonujemy przy pomocy funkcji `cut()` 
 przekształcającej zmienną numeryczną w czynnik uporządkowany.
 ```{r}
-table(cut(df$energy, breaks = 4))
+table(cut(dataframe$energy, breaks = 4))
 ```
 
 Samo dopasowanie wykonuje funkcja `lm()`.
 ```{r}
-fit_step <- lm(streams ~ cut(energy, 4), data = df)
+fit_step <- lm(streams ~ cut(energy, 4), data = dataframe)
 pred_step <- predict(fit_step, list(energy = energy_grid), se.fit = TRUE)
 se_bands <- cbind(pred_step$fit + 2 * pred_step$se.fit, 
                   pred_step$fit - 2 * pred_step$se.fit)
-plot(df$energy, df$streams, col = "darkgrey", cex = 0.5, xlim = energy_lims)
+plot(dataframe$energy, dataframe$streams, col = "darkgrey", cex = 0.5, xlim = energy_lims)
 lines(energy_grid, pred_step$fit, col = "red", lwd = 2)
 matlines(energy_grid, se_bands, col = "red", lty = "dashed")
 ```
@@ -114,9 +114,9 @@ Domyślnym stopniem funkcji sklejanych jest 3.
 
 Regresja z użyciem funkcji sklejanych z ustalonymi węzłami.
 ```{r}
-fit_bs_knots <- lm(streams ~ bs(energy, knots = c(25, 40, 60)), data = df)
+fit_bs_knots <- lm(streams ~ bs(energy, knots = c(25, 40, 60)), data = dataframe)
 pred_bs_knots <- predict(fit_bs_knots, list(energy = energy_grid), se.fit = TRUE)
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
 lines(energy_grid, pred_bs_knots$fit, col = "red", lwd = 2)
 lines(energy_grid, pred_bs_knots$fit + 2 * pred_bs_knots$se.fit, col = "red",
       lty = "dashed")
@@ -130,15 +130,15 @@ abline(v = c(25, 40, 60), lty = "dotted")
 Dopasowanie modelu wykorzystującego funkcje sklejane o ustalonej liczbie
 stopni swobody. Węzły są rozmieszczane automatycznie.
 ```{r}
-fit_bs_df <- lm(streams ~ bs(energy, df = 6), data = df)
-pred_bs_df <- predict(fit_bs_df, list(energy = energy_grid), se.fit = TRUE)
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
-lines(energy_grid, pred_bs_df$fit, col = "red", lwd = 2)
-lines(energy_grid, pred_bs_df$fit + 2 * pred_bs_df$se.fit, col = "red",
+fit_bs_dataframe <- lm(streams ~ bs(energy, dataframe = 6), data = dataframe)
+pred_bs_dataframe <- predict(fit_bs_dataframe, list(energy = energy_grid), se.fit = TRUE)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(energy_grid, pred_bs_dataframe$fit, col = "red", lwd = 2)
+lines(energy_grid, pred_bs_dataframe$fit + 2 * pred_bs_dataframe$se.fit, col = "red",
       lty = "dashed")
-lines(energy_grid, pred_bs_df$fit - 2 * pred_bs_df$se.fit, col = "red",
+lines(energy_grid, pred_bs_dataframe$fit - 2 * pred_bs_dataframe$se.fit, col = "red",
       lty = "dashed")
-bs_knots <- attr(bs(df$energy, df = 6), "knots")
+bs_knots <- attr(bs(dataframe$energy, dataframe = 6), "knots")
 abline(v = bs_knots, lty = "dotted")
 ```
 
@@ -153,15 +153,15 @@ innych stopni.**]
 Bazę naturalnych *sześciennych* funkcji sklejanych wyznacza funkcja `ns()`
 z pakietu `splines`.
 ```{r}
-fit_ns <- lm(streams ~ ns(energy, df = 4), data = df)
+fit_ns <- lm(streams ~ ns(energy, dataframe = 4), data = dataframe)
 pred_ns <- predict(fit_ns, list(energy = energy_grid), se.fit = TRUE)
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
 lines(energy_grid, pred_ns$fit, col = "red", lwd = 2)
 lines(energy_grid, pred_ns$fit + 2 * pred_ns$se.fit, col = "red",
       lty = "dashed")
 lines(energy_grid, pred_ns$fit - 2 * pred_ns$se.fit, col = "red",
       lty = "dashed")
-abline(v = attr(ns(df$energy, df = 4), "knots"), lty = "dotted")
+abline(v = attr(ns(dataframe$energy, dataframe = 4), "knots"), lty = "dotted")
 ```
 
 [**Sprawdź jak liczba stopni swobody wpływa na dopasowany model.**]
@@ -176,16 +176,16 @@ Dopasowanie wygładzającej (sześciennej) funkcji sklejanej do danych wykonuje 
 `smooth.spline()`. Możemy dopasować wygładzającą funkcję sklejaną o ustalonej
 liczbie stopni swobody (tu 16).
 ```{r}
-fit_smooth_df <- smooth.spline(df$energy, df$streams, df = 16)
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
-lines(fit_smooth_df, col = "red", lwd = 2)
+fit_smooth_dataframe <- smooth.spline(dataframe$energy, dataframe$streams, dataframe = 16)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
+lines(fit_smooth_dataframe, col = "red", lwd = 2)
 ```
 
 Można też liczbę stopni swobody wyznaczyć automatycznie korzystając z walidacji
 krzyżowej.
 ```{r, warning=FALSE}
-fit_smooth_cv <- smooth.spline(df$energy, df$streams, cv = TRUE)
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
+fit_smooth_cv <- smooth.spline(dataframe$energy, dataframe$streams, cv = TRUE)
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
 lines(fit_smooth_cv, col = "red", lwd = 2)
 ```
 
@@ -196,9 +196,9 @@ Parametr funkcji o nazwie `span` odpowiada parametrowi metody $s$.
 ```{r}
 spans <- c(0.2, 0.5)
 clrs <- c("red", "blue")
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
 for (i in 1:length(spans)) {
-   fit_loess <- loess(streams ~ energy, span = spans[i], data = df)
+   fit_loess <- loess(streams ~ energy, span = spans[i], data = dataframe)
    pred_loess <- predict(fit_loess, data.frame(energy = energy_grid))
    lines(energy_grid, pred_loess, col = clrs[i], lwd = 2)
 }
@@ -209,9 +209,9 @@ To samo dla wielomianów stopnia 1.
 ```{r}
 spans <- c(0.2, 0.5)
 clrs <- c("red", "blue")
-plot(df$energy, df$streams, cex = 0.5, col = "darkgrey")
+plot(dataframe$energy, dataframe$streams, cex = 0.5, col = "darkgrey")
 for (i in 1:length(spans)) {
-   fit_loess <- loess(streams ~ energy, span = spans[i], degree = 1, data = df)
+   fit_loess <- loess(streams ~ energy, span = spans[i], degree = 1, data = dataframe)
    pred_loess <- predict(fit_loess, data.frame(energy = energy_grid))
    lines(energy_grid, pred_loess, col = clrs[i], lwd = 2)
 }
@@ -224,8 +224,8 @@ GAM będący rozwinięciem modelu liniowego może być uczony metodą najmniejsz
 kwadratów przy pomocy funkcji `lm()`.
 
 ```{r}
-fit_gam_ls <- lm(streams ~ ns(liveness, df = 4) + ns(energy, df = 5) + speechiness,
-                 data = df)
+fit_gam_ls <- lm(streams ~ ns(liveness, dataframe = 4) + ns(energy, dataframe = 5) + speechiness,
+                 data = dataframe)
 fit_gam_ls
 summary(fit_gam_ls)
 ```
@@ -239,7 +239,7 @@ regresję.
 Dopasowanie modelu podobnego do poprzedniego, ale z użyciem wygładzających
 funkcji sklejanych.
 ```{r}
-fit_gam_bf <- gam(streams ~ s(liveness, df = 4) + s(energy, df = 5) + speechiness, data = df)
+fit_gam_bf <- gam(streams ~ s(liveness, dataframe = 4) + s(energy, dataframe = 5) + speechiness, data = dataframe)
 summary(fit_gam_bf)
 ```
 
@@ -258,15 +258,15 @@ plot.Gam(fit_gam_ls, col = "red", se = TRUE)
 
 Istnieje wersja funkcji `anova()` porównująca GAMs.
 ```{r}
-fit_gam_1 <- gam(streams ~ s(energy, df = 5) + speechiness, data = df)
-fit_gam_2 <- gam(streams ~ liveness + s(energy, df = 5) + speechiness, data = df)
+fit_gam_1 <- gam(streams ~ s(energy, dataframe = 5) + speechiness, data = dataframe)
+fit_gam_2 <- gam(streams ~ liveness + s(energy, dataframe = 5) + speechiness, data = dataframe)
 anova(fit_gam_1, fit_gam_2, fit_gam_bf, test = "F")
 ```
 
 Dopasowanie modelu wykorzystującego lokalną regresję.
 ```{r}
-fit_gam_lo <- gam(streams ~ s(liveness, df = 4) + lo(energy, span = 0.7) + speechiness, 
-                  data = df)
+fit_gam_lo <- gam(streams ~ s(liveness, dataframe = 4) + lo(energy, span = 0.7) + speechiness, 
+                  data = dataframe)
 summary(fit_gam_lo)
 par(mfrow = c(1, 3))
 plot(fit_gam_lo, col = "green", se = TRUE)
@@ -276,8 +276,8 @@ plot(fit_gam_lo, col = "green", se = TRUE)
 
 Regresja logistyczna wykorzystująca GAM
 ```{r}
-fit_logistic_gam <- gam(I(streams > 250) ~ liveness + s(energy, df = 5) + speechiness, 
-                        family = binomial, data = df)
+fit_logistic_gam <- gam(I(streams > 250) ~ liveness + s(energy, dataframe = 5) + speechiness, 
+                        family = binomial, data = dataframe)
 summary(fit_logistic_gam)
 par(mfrow = c(1, 3))
 plot(fit_logistic_gam, col = "blue", se = TRUE)

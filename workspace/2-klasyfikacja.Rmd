@@ -7,18 +7,18 @@ output: html_document
 ## Ładowanie zbioru danych
 
 ```{r}
-df = read.csv("spotify-2023.csv")
-names(df)[names(df) == "danceability_."] <- "danceability"
-names(df)[names(df) == "valence_."] <- "valence"
-names(df)[names(df) == "energy_."] <- "energy"
-names(df)[names(df) == "acousticness_."] <- "acousticness"
-names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
-names(df)[names(df) == "liveness_."] <- "liveness"
-names(df)[names(df) == "speechiness_."] <- "speechiness"
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
 
-df = transform(df, streams = as.numeric(streams))
+dataframe = transform(dataframe, streams = as.numeric(streams))
 
-head(df)
+head(dataframe)
 library(class)
 library(MASS)
 ```
@@ -28,22 +28,22 @@ library(MASS)
 ```{r}
 library(nnet) 
 
-model <- multinom(key ~ mode + danceability + valence + energy + acousticness, data = df) 
+model <- multinom(key ~ mode + danceability + valence + energy + acousticness, data = dataframe) 
 
 summary(model)
 ```
 ```{r}
-training_pred <- predict(model, df, type="class")
+training_pred <- predict(model, dataframe, type="class")
 
-accuracy <- mean(training_pred == df$key)
+accuracy <- mean(training_pred == dataframe$key)
 accuracy
 ```
 
 ```{r}
 library(caTools)
-trainIndex <- sample.split(df$key, SplitRatio = 0.8)
-train <- subset(df, trainIndex)
-test <- subset(df, !trainIndex)
+trainIndex <- sample.split(dataframe$key, SplitRatio = 0.8)
+train <- subset(dataframe, trainIndex)
+test <- subset(dataframe, !trainIndex)
 ```
 
 Regresję wykonujemy na podstawie zbioru uczącego
@@ -81,8 +81,8 @@ model4
 
 
 ```{r}
-train <- subset(df, trainIndex)
-test <- subset(df, !trainIndex)
+train <- subset(dataframe, trainIndex)
+test <- subset(dataframe, !trainIndex)
 train = na.omit(train)[c("key", "danceability", "valence", "energy", "acousticness")]
 test = na.omit(test)[c("key", "danceability", "valence", "energy", "acousticness")]
 

@@ -7,27 +7,27 @@ output: html_document
 ## Ładowanie zbioru danych
 
 ```{r}
-df = read.csv("spotify-2023.csv")
-names(df)[names(df) == "danceability_."] <- "danceability"
-names(df)[names(df) == "valence_."] <- "valence"
-names(df)[names(df) == "energy_."] <- "energy"
-names(df)[names(df) == "acousticness_."] <- "acousticness"
-names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
-names(df)[names(df) == "liveness_."] <- "liveness"
-names(df)[names(df) == "speechiness_."] <- "speechiness"
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
 
-df = transform(df, streams = as.numeric(streams))
+dataframe = transform(dataframe, streams = as.numeric(streams))
 
 library(class)
 library(MASS)
-head(df)
+head(dataframe)
 ```
 
 ## Walidacja krzyżowa
 
 Usuwamy NA
 ```{r}
-df <- na.omit(df)
+dataframe <- na.omit(dataframe)
 ```
 
 ### Metoda zbioru walidacyjnego
@@ -37,25 +37,25 @@ zbiór walidacyjny. Dla zapewnienia powtarzalności obliczeń stosujemy funkcję
 `set.seed`.
 ```{r}
 set.seed(1)
-n <- nrow(df)
+n <- nrow(dataframe)
 train <- sample(n, n / 2)
 ```
 
 Dopasowujemy model liniowy na zbiorze uczącym, następnie obliczamy MSE dla zbioru
 walidacyjnego.
 ```{r}
-df_lm <- lm(streams ~ liveness, data = df, subset = train)
-validation_set <- df[-train,]
-mse <- mean((validation_set$streams - predict(df_lm, validation_set))^2)
+dataframe_lm <- lm(streams ~ liveness, data = dataframe, subset = train)
+validation_set <- dataframe[-train,]
+mse <- mean((validation_set$streams - predict(dataframe_lm, validation_set))^2)
 mse
 ```
 
 Powtarzamy to samo dla regresji wielomianowej wyższych stopni
 ```{r}
 for (i in 2:5) {
-  df_lm_poly <- lm(streams ~ poly(liveness, degree = i), data = df, 
+  dataframe_lm_poly <- lm(streams ~ poly(liveness, degree = i), data = dataframe, 
                      subset = train)
-  print(mean((validation_set$streams - predict(df_lm_poly, validation_set))^2))
+  print(mean((validation_set$streams - predict(dataframe_lm_poly, validation_set))^2))
 }
 ```
 
@@ -66,12 +66,12 @@ Powtarzamy obliczenia dla innego zbioru walidacyjnego.
 ```{r}
 set.seed(2)
 train <- sample(n, n / 2)
-validation_set <- df[-train,]
+validation_set <- dataframe[-train,]
 degree_max <- 5
 mse <- rep(0, times = degree_max)
 for (i in 1:degree_max) {
-  df_lm <- lm(streams ~ poly(liveness, degree = i), data = df, subset = train)
-  mse[i] <- mean((validation_set$streams - predict(df_lm, validation_set))^2)
+  dataframe_lm <- lm(streams ~ poly(liveness, degree = i), data = dataframe, subset = train)
+  mse[i] <- mean((validation_set$streams - predict(dataframe_lm, validation_set))^2)
 }
 mse
 ```
@@ -81,9 +81,9 @@ Wersja powyższego obliczenia dla miłośników programowania funkcyjnego i tych
 którzy nie lubią pętli.
 ```{r}
 compute_mse <- function(degree, train) {
-  df_lm <- lm(streams ~ poly(liveness, degree), data = df, subset = train)
-  validation_set <- df[-train,]
-  mean((validation_set$streams - predict(df_lm, validation_set))^2)
+  dataframe_lm <- lm(streams ~ poly(liveness, degree), data = dataframe, subset = train)
+  validation_set <- dataframe[-train,]
+  mean((validation_set$streams - predict(dataframe_lm, validation_set))^2)
 }
 
 mse <- sapply(1:degree_max, compute_mse, train = train)
@@ -117,8 +117,8 @@ wprowadzanego przez walidację krzyżową inną niż LOOCV.
 library(boot)
 
 compute_loocv_mse <- function(degree) {
-  df_glm <- glm(streams ~ poly(liveness, degree), data = df)
-  cv.glm(df, df_glm)$delta[1]
+  dataframe_glm <- glm(streams ~ poly(liveness, degree), data = dataframe)
+  cv.glm(dataframe, dataframe_glm)$delta[1]
 }
 mse <- sapply(1:degree_max, compute_loocv_mse)
 mse
@@ -142,8 +142,8 @@ Podobnie korzystamy z funkcji `cv.glm()`, tylko teraz jawnie ustawiamy parametr 
 oznaczający liczbę grup (*folds*). Np. dla $k = 10$ wygląda to jak poniżej.
 ```{r kcv}
 compute_kcv_mse <- function(degree, k) {
-  df_glm <- glm(streams ~ poly(liveness, degree), data = df)
-  cv.glm(df, df_glm, K = k)$delta[1]
+  dataframe_glm <- glm(streams ~ poly(liveness, degree), data = dataframe)
+  cv.glm(dataframe, dataframe_glm, K = k)$delta[1]
 }
 mse <- sapply(1:degree_max, compute_kcv_mse, k = 10)
 mse
@@ -173,24 +173,24 @@ zbioru danych. Ta ostatnia funkcja powinna akceptować dwa parametry: zbiór dan
 oraz wektor indeksów (istnieją też inne możliwości: `?boot`).
 ```{r}
 lm_coefs <- function(data, index = 1:nrow(data)) {
-  coef(lm(streams ~ liveness, data = df, subset = index))
+  coef(lm(streams ~ liveness, data = dataframe, subset = index))
 }
 ```
 
 Funkcja `lm_coefs()` oblicza estymaty współczynników regresji dla zbioru danych
 typu bootstrap utworzonego z `Auto`:
 ```{r}
-n <- nrow(df)
-lm_coefs(df, sample(n, n, replace = TRUE))
+n <- nrow(dataframe)
+lm_coefs(dataframe, sample(n, n, replace = TRUE))
 ```
 Oczywiście jednym z takich zbiorów jest sam oryginał
 ```{r}
-lm_coefs(df)
+lm_coefs(dataframe)
 ```
 
 Obliczenie błędów standardowych metodą bootstrap z 1000 replikacji wygląda 
 następująco.
 ```{r boot}
-boot(df, lm_coefs, R = 1000)
+boot(dataframe, lm_coefs, R = 1000)
 ```
 

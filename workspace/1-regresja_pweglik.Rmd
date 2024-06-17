@@ -7,42 +7,42 @@ output: html_document
 ## Ładowanie zbioru danych
 
 ```{r}
-df = read.csv("spotify-2023.csv")
-names(df)[names(df) == "danceability_."] <- "danceability"
-names(df)[names(df) == "valence_."] <- "valence"
-names(df)[names(df) == "energy_."] <- "energy"
-names(df)[names(df) == "acousticness_."] <- "acousticness"
-names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
-names(df)[names(df) == "liveness_."] <- "liveness"
-names(df)[names(df) == "speechiness_."] <- "speechiness"
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
 
-df = transform(df, streams = as.numeric(streams))
+dataframe = transform(dataframe, streams = as.numeric(streams))
 
-head(df)
+head(dataframe)
 ```
 
 ```{r}
-names(df)
+names(dataframe)
 ```
 
 ```{r}
-dim(df)
+dim(dataframe)
 ```
 
 ## Prosta regresja liniowa
 
 ```{r}
-fit_ac <- lm(streams ~ acousticness, data = df)
+fit_ac <- lm(streams ~ acousticness, data = dataframe)
 summary(fit_ac)
 ```
 
 ```{r}
-fit_lv <- lm(df$streams ~ df$liveness)
+fit_lv <- lm(dataframe$streams ~ dataframe$liveness)
 summary(fit_lv)
 ```
 
 ```{r}
-fit_sp <- lm(df$streams ~ df$speechiness)
+fit_sp <- lm(dataframe$streams ~ dataframe$speechiness)
 summary(fit_sp)
 ```
 
@@ -52,15 +52,15 @@ Prosta regresji na tle danych
 
 ```{r}
 {
-  plot = plot(df$speechiness, df$streams)
+  plot = plot(dataframe$speechiness, dataframe$streams)
   abline(fit_sp, col="red")
 }
 ```
 
 ```{r}
 {
-  fit <- lm(df$liveness ~ df$energy)
-  plot = plot(df$energy, df$liveness)
+  fit <- lm(dataframe$liveness ~ dataframe$energy)
+  plot = plot(dataframe$energy, dataframe$liveness)
   abline(fit, col="red")
 }
 ```
@@ -76,14 +76,14 @@ plot(fit_sp)
 ## Regresja wielokrotna
 
 ```{r}
-fit_some <- lm(streams ~ key + energy + liveness, data = df)
+fit_some <- lm(streams ~ key + energy + liveness, data = dataframe)
 summary(fit_some)
 ```
 
 Regresja bez niektórych zmiennych
 
 ```{r}
-fit_filtered <- lm(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df)
+fit_filtered <- lm(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe)
 summary(fit_filtered)
 ```
 
@@ -100,14 +100,14 @@ Wniosek: Dołożenie większej liczby cech zmniejszyło średnio błąd kwadrato
 ## Interakcje między zmiennymi
 
 ```{r}
-summary(lm(streams ~ energy * liveness, data = df))
+summary(lm(streams ~ energy * liveness, data = dataframe))
 ```
 
 ## Nieliniowe transformacje predyktorów
 
 
 ```{r}
-fit_l2 <- lm(streams ~ bpm + I(bpm^2), data = df)
+fit_l2 <- lm(streams ~ bpm + I(bpm^2), data = dataframe)
 summary(fit_l2)
 ```
 
@@ -119,14 +119,14 @@ anova(fit_ac, fit_l2)
 Regresja wielomianowa wyższego stopnia może wykorzystywać funkcję `poly()`
 
 ```{r poly}
-fit_l5 <- lm(streams ~ poly(bpm, 5), data = df)
+fit_l5 <- lm(streams ~ poly(bpm, 5), data = dataframe)
 summary(fit_l5)
 ```
 
 Logarytmiczna transformacja predyktora
 
 ```{r log}
-summary(lm(streams ~ log(bpm), data = df))
+summary(lm(streams ~ log(bpm), data = dataframe))
 ```
 
 ## Predyktory jakościowe
@@ -134,6 +134,6 @@ summary(lm(streams ~ log(bpm), data = df))
 Dla czynników generowane są automatycznie zmienne zastępcze, np.
 
 ```{r}
-fit_key <- lm(streams ~ key, data = df)
+fit_key <- lm(streams ~ key, data = dataframe)
 summary(fit_key)
 ```

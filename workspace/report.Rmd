@@ -1,0 +1,78 @@
+# Statystyka wielowymiarowa
+
+Przemysław Węglik
+17.06.2024
+
+## Dataset
+
+Użyłem datasetu: [Most Streamed Spotify Songs 2023](https://www.kaggle.com/datasets/nelgiriyewithana/top-spotify-songs-2023).
+Dane zawierają różnorodne informacje dotyczące najczęściej odsłuchiwamnych utworów dostępnych na Spotify w roku 2023. Zbiór danych obejmuje zarówno cechy utworów, jak i informacje o artystach oraz interakcjach użytkowników z muzyką. Poniżej znajduje się przykładowy przegląd tego, co zawierają dane:
+
+#### Informacje o utworach
+
+Zbiór danych zawiera podstawowe informacje o utworach, takie jak identyfikator utworu, jego nazwa, nazwa artysty, nazwa albumu oraz data wydania. Szczególnie interesującą nas wartością jest liczba odsłuchań, którą będziemy próbowali przewidywać różnymi metodami.
+
+#### Informacje o artystach
+
+Dane o artystach obejmują ich unikalne identyfikatory, nazwy, oraz gatunki muzyczne, które reprezentują.
+
+#### Cechy audio
+
+Spotify dostarcza wiele danych opisujących cechy audio utworów. Na przykład, "danceability" (czyli jak dobrze utwór nadaje się do tańczenia), "energy" (energia utworu), klucz muzyczny, głośność, tryb (major lub minor), oraz "speechiness" (obecność słów mówionych w utworze). Inne przykłady to "acousticness" (akustyczność), "instrumentalness" (obecność instrumentalnych partii) oraz "liveness" (to czy utwór jest nagrany na żywo).
+
+## Ładowanie zbioru danych
+Zmieniamy nazwy kolumn i delikatnie czyścimy 
+
+```{r}
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
+
+dataframe = transform(dataframe, liveness = as.numeric(liveness))
+dataframe = na.omit(dataframe)
+
+head(dataframe)
+```
+
+## Prosta regresja liniowa
+
+```{r}
+fit_ac <- lm(streams ~ acousticness, data = dataframe)
+summary(fit_ac)
+```
+
+```{r}
+fit_lv <- lm(dataframe$streams ~ dataframe$liveness)
+summary(fit_lv)
+```
+
+```{r}
+fit_sp <- lm(dataframe$streams ~ dataframe$speechiness)
+summary(fit_sp)
+```
+
+## Wykresy prostej regresji liniowej
+
+Prosta regresji na tle danych
+
+```{r}
+{
+  plot = plot(dataframe$speechiness, dataframe$streams)
+  abline(fit_sp, col="red")
+}
+```
+
+```{r}
+{
+  fit <- lm(dataframe$liveness ~ dataframe$energy)
+  plot = plot(dataframe$energy, dataframe$liveness)
+  abline(fit, col="red")
+}
+```
+
+Przykładowe wnioski: - liczba odsłuchań jest negatywnie skorelowana z liczbą słów w piosence. - energetyczność piosenki jest pozytywnie skorelowana z elementami wystąpień na żywo

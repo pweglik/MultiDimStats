@@ -5,23 +5,23 @@ output: html_document
 ---
 
 ```{r}
-df = read.csv("spotify-2023.csv")
-names(df)[names(df) == "danceability_."] <- "danceability"
-names(df)[names(df) == "valence_."] <- "valence"
-names(df)[names(df) == "energy_."] <- "energy"
-names(df)[names(df) == "acousticness_."] <- "acousticness"
-names(df)[names(df) == "instrumentalness_."] <- "instrumentalness"
-names(df)[names(df) == "liveness_."] <- "liveness"
-names(df)[names(df) == "speechiness_."] <- "speechiness"
+dataframe = read.csv("spotify-2023.csv")
+names(dataframe)[names(dataframe) == "danceability_."] <- "danceability"
+names(dataframe)[names(dataframe) == "valence_."] <- "valence"
+names(dataframe)[names(dataframe) == "energy_."] <- "energy"
+names(dataframe)[names(dataframe) == "acousticness_."] <- "acousticness"
+names(dataframe)[names(dataframe) == "instrumentalness_."] <- "instrumentalness"
+names(dataframe)[names(dataframe) == "liveness_."] <- "liveness"
+names(dataframe)[names(dataframe) == "speechiness_."] <- "speechiness"
 
-df = transform(df, streams = as.numeric(streams))
+dataframe = transform(dataframe, streams = as.numeric(streams))
 
-head(df)
+head(dataframe)
 ```
 
 ```{r}
 library(glmnet)
-df <- na.omit(df)
+dataframe <- na.omit(dataframe)
 ```
 
 ## Regularyzacja
@@ -33,8 +33,8 @@ Funkcja `glmnet::glmnet()` ma składnię odmienną od `lm()` i jej podobnych. Da
 wejściowe muszą być podane odmiennie. Trzeba w szczególności samodzielnie 
 skonstruować macierz $\mathbf{X}$
 ```{r}
-X <- model.matrix(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = df)[, -1]
-y <- df$streams
+X <- model.matrix(streams ~ . - track_name - artist.s._name - released_day - in_deezer_playlists - in_shazam_charts, data = dataframe)[, -1]
+y <- dataframe$streams
 ```
 
 Argument `alpha` funkcji `glmnet()` decyduje o typie użytej regularyzacji:
